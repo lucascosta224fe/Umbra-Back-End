@@ -1,0 +1,21 @@
+
+[
+  {
+    "id": 1,
+    "titulo": "O Senhor dos Anéis",
+    "autor": "J.R.R. Tolkien",
+    "valor": 50
+  },
+  {
+    "id": 2,
+    "titulo": "O Hobbit",
+    "autor": "J.R.R. Tolkien",
+    "valor": 30
+  },
+  {
+    "id": 3,
+    "titulo": "Crônicas de Nárnia",
+    "autor": "C.S. Lewis",
+    "valor": 100
+  }
+]
