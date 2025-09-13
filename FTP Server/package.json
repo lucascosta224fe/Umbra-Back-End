@@ -1,0 +1,8 @@
+{
+  "name": "ftp-server",
+  "description": "Criando um servidor ftp usando o modulo nodeftpd",
+  "version": "1.0.0",
+  "dependencies": {
+    "ftp-srv": "^4.6.3"
+  }
+}
