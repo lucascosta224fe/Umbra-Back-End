@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Sniffer</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        max-height: 80vh;
+        overflow-y: auto;
+        border: 1px solid #ccc;
+        background: #fff;
+        padding: 10px;
+        border-radius: 5px;
+      }
+      li {
+        padding: 4px 6px;
+        margin-bottom: 2px;
+        border-bottom: 1px solid #eee;
+        font-family: monospace;
+      }
+      /* Cores para cada tipo de pacote */
+      .HTTP { background-color: #cce5ff; }   /* Azul claro */
+      .FTP { background-color: #d4edda; }    /* Verde claro */
+      .OTHER { background-color: #f8f9fa; }  /* Cinza claro */
+      .timestamp {
+        font-size: 0.8em;
+        color: #999;
+        margin-left: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Pacotes Capturados</h1>
+    <ul id="list"></ul>
+
+    <!-- Socket.IO client -->
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io("http://localhost:3000");
+      const list = document.getElementById('list');
+
+      socket.on('packet', (info) => {
+        const li = document.createElement('li');
+
+        // Define a classe com base no tipo do pacote enviado pelo backend
+        const type = info.type || 'OTHER';
+        li.className = type;
+
+        // Timestamp atual
+        const time = new Date().toLocaleTimeString();
+
+        li.innerHTML = `${info.src}:${info.srcport || '-'} → ${info.dst}:${info.dstport || '-'} proto:${type} <span class="timestamp">[${time}]</span>`;
+        
+        list.prepend(li);
+
+        // Limita a 200 pacotes na lista
+        if(list.children.length > 200) {
+          list.removeChild(list.lastChild);
+        }
+      });
+
+      socket.on('connect', () => {
+        console.log("✅ Conectado ao servidor de captura!");
+      });
+
+      socket.on('disconnect', () => {
+        console.log("❌ Desconectado do servidor.");
+      });
+    </script>
+  </body>
+</html>

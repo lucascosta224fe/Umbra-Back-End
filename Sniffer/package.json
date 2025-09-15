@@ -1,0 +1,16 @@
+{
+  "name": "sniffer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sniffer-server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cap": "^0.2.1",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.1"
+  }
+}
