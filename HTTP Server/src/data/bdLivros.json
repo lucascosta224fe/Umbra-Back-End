@@ -1,4 +1,3 @@
-
 [
   {
     "id": 1,
@@ -17,5 +16,17 @@
     "titulo": "Crônicas de Nárnia",
     "autor": "C.S. Lewis",
     "valor": 100
+  },
+  {
+    "id": 4,
+    "titulo": "Duna",
+    "autor": "Frank Herbert",
+    "valor": 75.5
+  },
+  {
+    "id": 5,
+    "titulo": "Anne Frank",
+    "autor": "Só deus",
+    "valor": 1000
   }
 ]
