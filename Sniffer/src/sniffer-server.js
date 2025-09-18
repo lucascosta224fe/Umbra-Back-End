@@ -14,6 +14,19 @@ const io = new Server(server, {
   }
 });
 
+const fivesecBuffer = [];
+var qtdPackets = 0
+
+setInterval(() => {
+  const packetsToSend = [...fivesecBuffer]
+  fivesecBuffer.length = 0
+
+  if (packetsToSend.length > 0) {
+    console.log(`Enviando ${packetsToSend.length} pacotes para o frontend.`);
+
+  }
+}, 5000)
+
 app.get('/', (req, res) => res.send('Sniffer rodando. Conecte o frontend ao socket.'));
 
 const capture = new Cap();
@@ -30,7 +43,6 @@ const mappedDevices = realDevices.map((d, i) => {
   const ipv6Addresses = d.addresses
     .filter(a => a.addr && a.addr.includes(':'))
     .map(a => a.addr);
-
   return {
     index: i,
     name: d.name,
@@ -59,6 +71,8 @@ const linkType = capture.open(device, filter, bufSize, buffer); // Começa a ver
 capture.setMinBytes && capture.setMinBytes(0); // Captura acontece até em pacotes de tamanho 0 
 
 capture.on('packet', function (nbytes, trunc) {
+
+  qtdPackets++
 
   var macinfo
   var ipv4info
@@ -108,7 +122,7 @@ capture.on('packet', function (nbytes, trunc) {
         console.log(mappedDevices[k].mac)
       }
     }  // atribui mac a endereço IPv4 correspondente
-    
+
   } catch (err) {
     console.error('Erro ao decodificar pacote:', err.message);
   }
@@ -120,3 +134,62 @@ io.on('connection', (socket) => {
 
 server.listen(3000, () => console.log('Sniffer server ouvindo na porta 3000'));
 
+
+setInterval(() => {
+  console.log(`Pacotes nos últimos 5 segundos: ${qtdPackets}`);
+  qtdPackets = 0;
+}, 5000);
+
+//API
+
+
+// const dashboardResponse = {
+//   topCards: [
+//     {
+//       name: "Computadores",
+//       value: "string" //mappedDevices.at(-1).index
+//     },
+
+//     {
+//       name: "Pacotes Perdidos",
+//       value: 0
+//     },
+
+//     {
+//       name: "Pacotes Reenviados",
+//       value: 0
+//     },
+
+//     {
+//       name: "Taxa de Tráfego",
+//       value: 0
+//     },
+
+//     {
+//       name: "Tempo Médio de Resposta",
+//       value: 0
+//     }
+//   ],
+//   computers: [ // realDevices
+//     {
+//       name: string,
+//       ipv4: string,
+//       ipv6: string,
+//       macAddress: string,
+//       numRequests: 0
+//     },
+//     {
+
+//     }
+//   ],
+//   protocols: [
+//     {
+//       name: string,
+//       value: 0
+//     }
+//   ],
+//   inputOutput: {
+//     input: 0,
+//     output: 0
+//   }
+// }
