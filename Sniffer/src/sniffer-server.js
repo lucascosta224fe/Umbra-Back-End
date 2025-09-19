@@ -48,7 +48,9 @@ const mappedDevices = realDevices.map((d, i) => {
     name: d.name,
     ipv4: ipv4Addresses,
     ipv6: ipv6Addresses,
-    mac: null
+    mac: null,
+    packetsIn: 0,
+    packetsOut: 0,
   };
 });
 
@@ -126,6 +128,24 @@ function assignMacToDevice(macinfo, ipv4info){
 
 }
 
+function updateDevicePacketCount(ipv4info, mappedDevices) {
+    if (!ipv4info) {
+        return;
+    }
+
+    // Procura o dispositivo mapeado que corresponde ao IP de origem
+    const sourceDevice = mappedDevices.find(dev => dev.ipv4.includes(ipv4info.ipv4src));
+    if (sourceDevice) {
+        sourceDevice.packetsOut++;
+    }
+
+    // Procura o dispositivo mapeado que corresponde ao IP de destino
+    const destDevice = mappedDevices.find(dev => dev.ipv4.includes(ipv4info.ipv4dst));
+    if (destDevice) {
+        destDevice.packetsIn++;
+    }
+  }
+
 capture.on('packet', function (nbytes, trunc) {
 
   qtdPackets++
@@ -135,6 +155,8 @@ capture.on('packet', function (nbytes, trunc) {
     const { macinfo, ipv4info } = processPacket(buffer, linkType, decoders, PROTOCOL, io);
 
     assignMacToDevice(macinfo, ipv4info)
+
+    updateDevicePacketCount(ipv4Info, mappedDevices);
 
   } catch (err) {
     console.error('Erro ao decodificar pacote:', err.message);
@@ -160,27 +182,27 @@ setInterval(() => {
 //   topCards: [
 //     {
 //       name: "Computadores",
-//       value: "string" //mappedDevices.at(-1).index
+//       value: "string" // mappedDevices.at(-1).index
 //     },
 
 //     {
 //       name: "Pacotes Perdidos",
-//       value: 0
+//       value: 0 // RST TCP
 //     },
 
 //     {
 //       name: "Pacotes Reenviados",
-//       value: 0
+//       value: 0 // meio complexo deixa p dps 
 //     },
 
 //     {
 //       name: "Taxa de Tráfego",
-//       value: 0
+//       value: (qtdPackets / 5) 
 //     },
 
 //     {
 //       name: "Tempo Médio de Resposta",
-//       value: 0
+//       value: 0 // msm lógica do pacotes reenviados
 //     }
 //   ],
 //   computers: [ // realDevices
@@ -206,3 +228,28 @@ setInterval(() => {
 //     output: 0
 //   }
 // }
+
+// /computer/{ip}
+
+// {
+//     "name": "string",
+//     "ipv4": "string",
+//     "lineChartData": [
+//         {
+//             "packages": 0,
+//             "tcpError": 0
+//         }
+//     ],
+//     "protocols": [
+//         {
+//             "name": "string",
+//             "value": 0
+//         }
+//     ],
+//     "inputOutput": [
+//         {
+//             "input": 0,
+//             "output": 0
+//         }
+//     ]
+// } 
