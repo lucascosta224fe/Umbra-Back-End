@@ -81,9 +81,6 @@ export const atualizarLivro = (req: Request, res: Response) => {
     escreverNoBanco(dbLivros);
     sendOk(res, livroAtualizado);
 };
-// Em: src/controllers/request.ts
-
-// ... (seus outros imports)
 
 export const deletarLivro = (req: Request, res: Response) => {
     const idParaDeletar = parseInt(req.params.id, 10);
