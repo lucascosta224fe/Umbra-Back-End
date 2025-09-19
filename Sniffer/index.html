@@ -49,17 +49,17 @@
       const socket = io("http://localhost:3000");
       const list = document.getElementById('list');
 
-      socket.on('packet', (info) => {
+      socket.on('packet', (item) => {
         const li = document.createElement('li');
 
         // Define a classe com base no tipo do pacote enviado pelo backend
-        const type = info.type || 'OTHER';
+        const type = item.type || 'OTHER';
         li.className = type;
 
         // Timestamp atual
         const time = new Date().toLocaleTimeString();
 
-        li.innerHTML = `${info.src}:${info.srcport || '-'} → ${info.dst}:${info.dstport || '-'} proto:${type} <span class="timestamp">[${time}]</span>`;
+        li.innerHTML = `${item.ipv4src}:${item.srcport || '-'} → ${item.ipv4dst}:${item.dstport || '-'} proto:${type} <span class="timestamp">[${time}]</span>`;
         
         list.prepend(li);
 
