@@ -15,7 +15,7 @@ const io = new Server(server, {
 });
 
 const fivesecBuffer = [];
-var qtdPackets = 0
+let qtdPackets = 0
 
 setInterval(() => {
   const packetsToSend = [...fivesecBuffer]
@@ -38,10 +38,10 @@ const realDevices = devices.filter(d =>
 
 const mappedDevices = realDevices.map((d, i) => {
   const ipv4Addresses = d.addresses
-    .filter(a => a.addr && a.addr.includes('.'))
+    .filter(a => a?.addr.includes('.'))
     .map(a => a.addr);
   const ipv6Addresses = d.addresses
-    .filter(a => a.addr && a.addr.includes(':'))
+    .filter(a => a?.addr.includes(':'))
     .map(a => a.addr);
   return {
     index: i,
@@ -68,53 +68,54 @@ const bufSize = 10 * 1024 * 1024; // Tamanho Máximo de um pedaço pacote normal
 const buffer = Buffer.alloc(65535); // Tamanho Máximo de um pacote IPV4
 
 const linkType = capture.open(device, filter, bufSize, buffer); // Começa a ver pacotes 
-capture.setMinBytes && capture.setMinBytes(0); // Captura acontece até em pacotes de tamanho 0 
+capture?.setMinBytes(0); // Captura acontece até em pacotes de tamanho 0 
 
-capture.on('packet', function (nbytes, trunc) {
+function processPacket(buffer, linkType, decoders, PROTOCOL, io) {
+    let macinfo;
+    let ipv4info;
 
-  qtdPackets++
-
-  var macinfo
-  var ipv4info
-
-  try {
     if (linkType === 'ETHERNET') {
-      const eth = decoders.Ethernet(buffer);
+        const eth = decoders.Ethernet(buffer);
 
-      const macSrc = eth.info.srcmac;
-      const macDst = eth.info.dstmac;
+        const macSrc = eth.info.srcmac;
+        const macDst = eth.info.dstmac;
 
-      macinfo = {
-        macSrc: macSrc,
-        macDst: macDst
-      }
-
-      if (eth.info.type === PROTOCOL.ETHERNET.IPV4) {
-        const ip = decoders.IPV4(buffer, eth.offset);
-        ipv4info = {
-          ipv4src: ip.info.srcaddr,  // endereço de origem do pacote
-          ipv4dst: ip.info.dstaddr,  // endereço de destino do pacote
-          protocol: ip.info.protocol, // protocolo da camada de transporte (ex: TCP = 6, UDP = 17, ICMP = 1)
+        macinfo = {
+            macSrc: macSrc,
+            macDst: macDst
         };
 
-        if (ip.info.protocol === PROTOCOL.IP.TCP) {
-          const tcp = decoders.TCP(buffer, ip.offset);
-          ipv4info.srcport = tcp.info.srcport;
-          ipv4info.dstport = tcp.info.dstport;
+        if (eth.info.type === PROTOCOL.ETHERNET.IPV4) {
+            const ip = decoders.IPV4(buffer, eth.offset);
+            ipv4info = {
+                ipv4src: ip.info.srcaddr,
+                ipv4dst: ip.info.dstaddr,
+                protocol: ip.info.protocol,
+            };
 
-          // Define tipo de pacote
-          if (tcp.info.srcport === 80 || tcp.info.dstport === 80) ipv4info.type = 'HTTP';
-          else if (tcp.info.srcport === 443 || tcp.info.dstport === 443) ipv4info.type = 'HTTPS';
-          else if ([20, 21].includes(tcp.info.srcport) || [20, 21].includes(tcp.info.dstport)) ipv4info.type = 'FTP';
-          else info.type = 'OTHER';
-        } else if (ip.info.protocol === PROTOCOL.IP.UDP) {
-          // UDP decode se desejar
+            if (ip.info.protocol === PROTOCOL.IP.TCP) {
+                const tcp = decoders.TCP(buffer, ip.offset);
+                ipv4info.srcport = tcp.info.srcport;
+                ipv4info.dstport = tcp.info.dstport;
+
+                // Define tipo de pacote
+                if (tcp.info.srcport === 80 || tcp.info.dstport === 80) ipv4info.type = 'HTTP';
+                else if (tcp.info.srcport === 443 || tcp.info.dstport === 443) ipv4info.type = 'HTTPS';
+                else if ([20, 21].includes(tcp.info.srcport) || [20, 21].includes(tcp.info.dstport)) ipv4info.type = 'FTP';
+                else ipv4info.type = 'OTHER';
+            } else if (ip.info.protocol === PROTOCOL.IP.UDP) {
+                // UDP decode se desejar
+            }
+
+            io.emit('packet', ipv4info);
         }
-
-        io.emit('packet', ipv4info);
-      }
-
     }
+    
+    // Retorna as informações para serem usadas fora da função
+    return { macinfo, ipv4info };
+}
+
+function assignMacToDevice(macinfo, ipv4info){
 
     for (let k = 0; k < mappedDevices.at(-1).index; k++) {
       if (ipv4info.ipv4src && mappedDevices[k].ipv4.includes(ipv4info.ipv4src)) {
@@ -122,6 +123,18 @@ capture.on('packet', function (nbytes, trunc) {
         console.log(mappedDevices[k].mac)
       }
     }  // atribui mac a endereço IPv4 correspondente
+
+}
+
+capture.on('packet', function (nbytes, trunc) {
+
+  qtdPackets++
+
+  try {
+
+    const { macinfo, ipv4info } = processPacket(buffer, linkType, decoders, PROTOCOL, io);
+
+    assignMacToDevice(macinfo, ipv4info)
 
   } catch (err) {
     console.error('Erro ao decodificar pacote:', err.message);
