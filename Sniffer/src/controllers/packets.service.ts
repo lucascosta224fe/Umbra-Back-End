@@ -34,7 +34,7 @@ export class PacketsService {
 
         ipv4Info.ipSrc = ip.info.srcaddr;
         ipv4Info.ipDst = ip.info.dstaddr;
-        ipv4Info.totalLen = ip.info.totalLen;
+        ipv4Info.totalLen = ip.info.totallen;
 
         if (ip.info.protocol === this.decoders.PROTOCOL.IP.TCP) {
           const tcp = this.decoders.TCP(this.buffer, ip.offset);
