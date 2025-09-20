@@ -2,15 +2,16 @@
   "name": "sniffer",
   "version": "1.0.0",
   "description": "",
-  "main": "sniffer-server.js",
+  "main": "index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node src/index.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cap": "^0.2.1",
-    "express": "^5.1.0",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "typescript": "^5.9.2"
   }
 }
