@@ -93,7 +93,8 @@ export class SnifferService {
     );
 
     this.cap.on("packet",  () => {
-      this.qtdPackets++;
+      const {ipv4Info}: any = packetsService.processPacket
+      this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego + ipv4Info.totalLen;
       this.retornoFront.computers = realDevices;
       this.retornoFront.qtdComputadores = realDevices.length;
       
@@ -106,7 +107,7 @@ export class SnifferService {
 
     
     setInterval(() => {
-      this.retornoFront.taxaTráfego = (this.qtdPackets / 5)
+      this.retornoFront.taxaTráfego = (this.retornoFront.taxaTráfego / 5)
       
       io.emit("packetData", this.retornoFront);
 

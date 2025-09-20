@@ -21,9 +21,9 @@ export class PacketsService {
     this.retornoFront = retornoFront;
   }
 
-  processPacket(): { macInfo: string; ipv4Info: {} } {
+  processPacket(): { macInfo: string; ipv4Info: {ipSrc: string, ipDst: string, totalLen: number} } {
     let macInfo: string = "";
-    let ipv4Info = { ipSrc: "", ipDst: "" };
+    let ipv4Info = { ipSrc: "", ipDst: "", totalLen: 0 };
 
       const eth = this.decoders.Ethernet(this.buffer);
 
@@ -34,6 +34,7 @@ export class PacketsService {
 
         ipv4Info.ipSrc = ip.info.srcaddr;
         ipv4Info.ipDst = ip.info.dstaddr;
+        ipv4Info.totalLen = ip.info.totalLen;
 
         if (ip.info.protocol === this.decoders.PROTOCOL.IP.TCP) {
           const tcp = this.decoders.TCP(this.buffer, ip.offset);
@@ -80,7 +81,7 @@ export class PacketsService {
         } else if (ip.info.protocol === this.decoders.PROTOCOL.IP.UDP) {
           const udp = this.decoders.UDP(this.buffer, ip.offset);
           this.retornoFront.protocols.udp++;
-          
+
           // Define tipo de pacote
           switch ((udp.info.dstport, udp.info.srcport)) {
             case 80:
@@ -147,6 +148,5 @@ export class PacketsService {
       retornoFront.inputOutput.output = 0
       retornoFront.protocols.other = 0
   }
-
 
 }
