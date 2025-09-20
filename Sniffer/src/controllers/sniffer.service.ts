@@ -67,7 +67,7 @@ export class SnifferService {
       });
 
     //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
-    const device = Cap.findDevice("192.168.15.5");
+    const device = Cap.findDevice("172.24.158.246");
     if (!device) {
       console.error(
         "Nenhuma interface disponível. Verifique permissão / drivers."

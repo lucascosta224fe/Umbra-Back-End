@@ -145,6 +145,7 @@ export class PacketsService {
       retornoFront.qtdPacotesReenviados = 0
       retornoFront.inputOutput.input = 0
       retornoFront.inputOutput.output = 0
+      retornoFront.protocols.other = 0
   }
 
 
