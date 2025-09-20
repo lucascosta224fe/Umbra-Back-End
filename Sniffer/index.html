@@ -59,7 +59,7 @@
         // Timestamp atual
         const time = new Date().toLocaleTimeString();
 
-        li.innerHTML = `${item.computers[0].ipv4} -> ${item.computers[0].mac} -> ${item.qtdComputadores} -> ${item.protocols.https}/${item.protocols.udp}/${item.protocols.tcp}`;
+        li.innerHTML = `${item.computers[1].ipv4} -> ${item.computers[1].mac} -> ${item.qtdComputadores} -> ${item.protocols.https}/${item.protocols.udp}/${item.protocols.tcp} -> PacotesTotais: ${item.taxaTráfego}`;
         
         list.prepend(li);
 

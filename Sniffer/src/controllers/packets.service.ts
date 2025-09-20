@@ -80,15 +80,7 @@ export class PacketsService {
         } else if (ip.info.protocol === this.decoders.PROTOCOL.IP.UDP) {
           const udp = this.decoders.UDP(this.buffer, ip.offset);
           this.retornoFront.protocols.udp++;
-
-          if (udp.info.length > 512) {
-            this.retornoFront.qtdPacotesPerdidos++;
-          }
-
-          if (udp.info.length > 512) {
-            this.retornoFront.qtdPacotesReenviados++;
-          }
-
+          
           // Define tipo de pacote
           switch ((udp.info.dstport, udp.info.srcport)) {
             case 80:
@@ -141,4 +133,19 @@ export class PacketsService {
       destDevice.packetsIn++;
     }
   }
+
+  static resetProperties(retornoFront: ResponseI){
+      retornoFront.taxaTráfego = 0
+      retornoFront.protocols.ftp = 0
+      retornoFront.protocols.http = 0
+      retornoFront.protocols.https = 0
+      retornoFront.protocols.tcp = 0
+      retornoFront.protocols.udp= 0
+      retornoFront.qtdPacotesPerdidos = 0
+      retornoFront.qtdPacotesReenviados = 0
+      retornoFront.inputOutput.input = 0
+      retornoFront.inputOutput.output = 0
+  }
+
+
 }

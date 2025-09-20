@@ -9,6 +9,7 @@ export class SnifferService {
   filter: string = "";
   bufSize: number = 0;
   buffer!: Buffer<ArrayBuffer>; // Tamanho Máximo de um pacote IPV4
+  qtdPackets: number = 0;
   retornoFront!: ResponseI;
 
   constructor() {
@@ -17,6 +18,7 @@ export class SnifferService {
     // this.filter = 'tcp port 3000 or tcp port 20 or tcp port 3001'; // usar esse depois
     this.bufSize = 10485760; // Tamanho Máximo de um pedaço pacote normalmente é 9MB mas serve como garantia
     this.buffer = Buffer.alloc(65535); // Tamanho Máximo de um pacote IPV4
+    this.qtdPackets = 0
     this.retornoFront = {
       qtdComputadores: 0,
       qtdPacotesPerdidos: 0,
@@ -40,8 +42,7 @@ export class SnifferService {
   }
 
   capturePackets() {
-    let qtdPackets = 0;
-    var realDevices: ComputerI[] = Cap.deviceList() // lista de interfaces do sistema
+    let realDevices: ComputerI[] = Cap.deviceList() // lista de interfaces do sistema
       .filter(
         (d: { addresses: any[] }) =>
           d.addresses.some(
@@ -66,7 +67,7 @@ export class SnifferService {
       });
 
     //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
-    const device = Cap.findDevice("172.29.62.226");
+    const device = Cap.findDevice("192.168.15.5");
     if (!device) {
       console.error(
         "Nenhuma interface disponível. Verifique permissão / drivers."
@@ -92,7 +93,7 @@ export class SnifferService {
     );
 
     this.cap.on("packet",  () => {
-      qtdPackets++;
+      this.qtdPackets++;
       this.retornoFront.computers = realDevices;
       this.retornoFront.qtdComputadores = realDevices.length;
       
@@ -103,8 +104,15 @@ export class SnifferService {
       }
     });
 
+    
     setInterval(() => {
+      this.retornoFront.taxaTráfego = (this.qtdPackets / 5)
+      
       io.emit("packetData", this.retornoFront);
+
+      PacketsService.resetProperties(this.retornoFront)
+      this.qtdPackets = 0
+
     }, 5000);
   }
 }
