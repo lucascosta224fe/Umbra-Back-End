@@ -40,7 +40,10 @@ export class PacketsService {
     this.qtdPacketsResend = qtdPacketsResend;
   }
 
-  processPacket(): { macInfo: string; ipv4Info: { ipSrc: string, ipDst: string, totalLen: number } } {
+  processPacket(): {
+    macInfo: string;
+    ipv4Info: { ipSrc: string; ipDst: string; totalLen: number };
+  } {
     let macInfo: string = "";
     let ipv4Info = { ipSrc: "", ipDst: "", totalLen: 0 };
 
@@ -138,7 +141,7 @@ export class PacketsService {
       }
     }
 
-    console.log(`Qtd PacotesResend ${this.qtdPacketsResend}`)
+    console.log(`Qtd PacotesResend ${this.qtdPacketsResend}`);
     this.assignMacToDevice(macInfo, ipv4Info);
     this.updateDevicePacketCount(ipv4Info);
     return { macInfo, ipv4Info };
@@ -174,36 +177,37 @@ export class PacketsService {
   }
 
   static resetProperties(retornoFront: ResponseI) {
-    retornoFront.taxaTráfego = 0
-    retornoFront.protocols.ftp = 0
-    retornoFront.protocols.http = 0
-    retornoFront.protocols.https = 0
-    retornoFront.protocols.tcp = 0
-    retornoFront.protocols.udp = 0
-    retornoFront.qtdPacotesPerdidos = 0
-    retornoFront.qtdPacotesReenviados = 0
-    retornoFront.inputOutput.input = 0
-    retornoFront.inputOutput.output = 0
-    retornoFront.protocols.other = 0
+    retornoFront.taxaTráfego = 0;
+    retornoFront.protocols.ftp = 0;
+    retornoFront.protocols.http = 0;
+    retornoFront.protocols.https = 0;
+    retornoFront.protocols.tcp = 0;
+    retornoFront.protocols.udp = 0;
+    retornoFront.qtdPacotesPerdidos = 0;
+    retornoFront.qtdPacotesReenviados = 0;
+    retornoFront.inputOutput.input = 0;
+    retornoFront.inputOutput.output = 0;
+    retornoFront.protocols.other = 0;
   }
 
-  public packetsResend(qtdPackets: number){
-    console.log(`QtdPacotes2 ${this.qtdPacketsResend}`)
-    if(this.qtdPacketsResend === 0 || qtdPackets === 0){
-      this.retornoFront.qtdPacotesReenviados = 0
-      this.qtdPacketsResend = 0
-      return this.retornoFront.qtdPacotesReenviados 
+  public packetsResend(qtdPackets: number) {
+    console.log(`QtdPacotes2 ${this.qtdPacketsResend}`);
+    if (this.qtdPacketsResend === 0 || qtdPackets === 0) {
+      this.retornoFront.qtdPacotesReenviados = 0;
+      this.qtdPacketsResend = 0;
+      return this.retornoFront.qtdPacotesReenviados;
     } else {
-    console.log(`PacotesTotais: ${qtdPackets}`)
-    console.log(`PacotesReenviados: ${this.qtdPacketsResend}`)
-    this.retornoFront.qtdPacotesReenviados = (this.qtdPacketsResend / qtdPackets * 100)
-    console.log(this.retornoFront.qtdPacotesReenviados)
-    this.qtdPacketsResend = 0
+      console.log(`PacotesTotais: ${qtdPackets}`);
+      console.log(`PacotesReenviados: ${this.qtdPacketsResend}`);
+      this.retornoFront.qtdPacotesReenviados =
+        (this.qtdPacketsResend / qtdPackets) * 100;
+      console.log(this.retornoFront.qtdPacotesReenviados);
+      this.qtdPacketsResend = 0;
+      return this.retornoFront.qtdPacotesReenviados;
     }
   }
 
   public resetConnections(): void {
     this.tcpConnections.clear();
   }
-
 }
