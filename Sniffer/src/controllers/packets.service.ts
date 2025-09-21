@@ -11,7 +11,7 @@ interface TcpConnectionInfo {
   destinationIp: string;
   sourcePort: number;
   destinationPort: number;
-  seenPackets: Set<string>; // Usa um Set para armazenar chaves únicas de pacotes vistos
+  sentPackets: Map<number, number>;
 }
 
 export class PacketsService {
@@ -62,27 +62,37 @@ export class PacketsService {
         const tcp = this.decoders.TCP(this.buffer, ip.offset);
         this.retornoFront.protocols.tcp++;
 
-        const connectionKey = `${ip.info.srcaddr}:${tcp.info.srcport}-${ip.info.dstaddr}:${tcp.info.dstport}`;
-        const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
-        const packetIdentifier = `${tcp.info.seqno}:${tcpPayloadLength}`;
+        // Create a single, consistent key for the connection, regardless of direction.
+        // This allows us to track packets sent by both sides.
+        let connectionKey;
+        if (ipv4Info.ipSrc < ipv4Info.ipDst) {
+          connectionKey = `${ipv4Info.ipSrc}:${tcp.info.srcport}-${ipv4Info.ipDst}:${tcp.info.dstport}`;
+        } else {
+          connectionKey = `${ipv4Info.ipDst}:${tcp.info.dstport}-${ipv4Info.ipSrc}:${tcp.info.srcport}`;
+        }
 
+        const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
+
+        // Attempt to retrieve the existing connection
         let connection = this.tcpConnections.get(connectionKey);
 
+        // If the connection doesn't exist, create a new one
         if (!connection) {
           connection = {
-            sourceIp: ip.info.srcaddr,
-            destinationIp: ip.info.dstaddr,
+            sourceIp: ipv4Info.ipSrc,
+            destinationIp: ipv4Info.ipDst,
             sourcePort: tcp.info.srcport,
             destinationPort: tcp.info.dstport,
-            seenPackets: new Set<string>(),
+            sentPackets: new Map<number, number>(),
           };
           this.tcpConnections.set(connectionKey, connection);
         }
 
-        if (connection.seenPackets.has(packetIdentifier)) {
+        // Check for retransmission
+        if (connection.sentPackets.has(tcp.info.seqno) && connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength) {
           this.qtdPacketsResend++;
         } else {
-          connection.seenPackets.add(packetIdentifier);
+          connection.sentPackets.set(tcp.info.seqno, tcpPayloadLength);
         }
 
         // Verifica se o pacote TCP é um RST (pacote perdido)
@@ -195,7 +205,6 @@ export class PacketsService {
     if (this.qtdPacketsResend === 0 || qtdPackets === 0) {
       this.retornoFront.qtdPacotesReenviados = 0;
       this.qtdPacketsResend = 0;
-      return this.retornoFront.qtdPacotesReenviados;
     } else {
       console.log(`PacotesTotais: ${qtdPackets}`);
       console.log(`PacotesReenviados: ${this.qtdPacketsResend}`);
@@ -203,11 +212,24 @@ export class PacketsService {
         (this.qtdPacketsResend / qtdPackets) * 100;
       console.log(this.retornoFront.qtdPacotesReenviados);
       this.qtdPacketsResend = 0;
-      return this.retornoFront.qtdPacotesReenviados;
     }
   }
 
   public resetConnections(): void {
     this.tcpConnections.clear();
   }
+
+  public updateInputOutput(): void {
+    let totalInput = 0;
+    let totalOutput = 0;
+
+    this.mappedDevices.forEach(device => {
+      totalInput += device.packetsIn;
+      totalOutput += device.packetsOut;
+    });
+
+    this.retornoFront.inputOutput.input = totalInput;
+    this.retornoFront.inputOutput.output = totalOutput;
+  }
+
 }
