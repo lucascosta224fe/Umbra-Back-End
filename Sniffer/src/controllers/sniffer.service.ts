@@ -90,12 +90,14 @@ export class SnifferService {
       linkType,
       Cap.decoders,
       realDevices,
-      this.retornoFront
+      this.retornoFront,
+      this.qtdPackets
     );
 
     this.packetsService = packetsService;
 
     this.cap.on("packet",  () => {
+      this.qtdPackets++
       try {
         const {ipv4Info}: any = packetsService.processPacket()
         this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego + ipv4Info.totalLen;
@@ -113,6 +115,7 @@ export class SnifferService {
       
       io.emit("packetData", this.retornoFront);
 
+      this.packetsService.packetsResend(this.qtdPackets);
       PacketsService.resetProperties(this.retornoFront);
       this.packetsService.resetConnections();
       this.qtdPackets = 0;

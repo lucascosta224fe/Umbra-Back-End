@@ -1,4 +1,5 @@
 import { ResponseI, ComputerI } from "../models/response.interface";
+import { SnifferService } from "./sniffer.service";
 
 interface SeenPacket {
   sequenceNumber: number;
@@ -20,13 +21,15 @@ export class PacketsService {
   mappedDevices: ComputerI[];
   retornoFront: ResponseI;
   private readonly tcpConnections: Map<string, TcpConnectionInfo>;
+  qtdPacketsResend: number;
 
   constructor(
     buffer: Buffer<ArrayBuffer>,
     linkType: string,
     decoders: any,
     mappedDevices: ComputerI[],
-    retornoFront: ResponseI
+    retornoFront: ResponseI,
+    qtdPacketsResend: number
   ) {
     this.buffer = buffer;
     this.linkType = linkType;
@@ -34,11 +37,13 @@ export class PacketsService {
     this.mappedDevices = mappedDevices;
     this.retornoFront = retornoFront;
     this.tcpConnections = new Map<string, TcpConnectionInfo>();
+    this.qtdPacketsResend = qtdPacketsResend;
   }
 
   processPacket(): { macInfo: string; ipv4Info: { ipSrc: string, ipDst: string, totalLen: number } } {
     let macInfo: string = "";
     let ipv4Info = { ipSrc: "", ipDst: "", totalLen: 0 };
+    this.qtdPacketsResend = 0
 
     const eth = this.decoders.Ethernet(this.buffer);
 
@@ -58,10 +63,6 @@ export class PacketsService {
         const connectionKey = `${ip.info.srcaddr}:${tcp.info.srcport}-${ip.info.dstaddr}:${tcp.info.dstport}`;
         const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
         const packetIdentifier = `${tcp.info.seqno}:${tcpPayloadLength}`;
-        
-        console.log(connectionKey)
-        console.log('Payload:')
-        console.log(packetIdentifier)
 
         let connection = this.tcpConnections.get(connectionKey);
 
@@ -77,7 +78,7 @@ export class PacketsService {
         }
 
         if (connection.seenPackets.has(packetIdentifier)) {
-          this.retornoFront.qtdPacotesReenviados++;
+          this.qtdPacketsResend++;
         } else {
           connection.seenPackets.add(packetIdentifier);
         }
@@ -143,6 +144,7 @@ export class PacketsService {
       }
     }
 
+    console.log(`Qtd PacotesResend ${this.qtdPacketsResend}`)
     this.assignMacToDevice(macInfo, ipv4Info);
     this.updateDevicePacketCount(ipv4Info);
     return { macInfo, ipv4Info };
@@ -189,6 +191,19 @@ export class PacketsService {
     retornoFront.inputOutput.input = 0
     retornoFront.inputOutput.output = 0
     retornoFront.protocols.other = 0
+  }
+
+  public packetsResend(qtdPackets: number){
+    console.log(`QtdPacotes2 ${this.qtdPacketsResend}`)
+    if(this.qtdPacketsResend === 0 || qtdPackets === 0){
+      this.retornoFront.qtdPacotesReenviados = 0
+      return this.retornoFront.qtdPacotesReenviados 
+    } else {
+    console.log(`PacotesTotais: ${qtdPackets}`)
+    console.log(`PacotesReenviados: ${this.qtdPacketsResend}`)
+    this.retornoFront.qtdPacotesReenviados = (this.qtdPacketsResend / qtdPackets * 100)
+    console.log(this.retornoFront.qtdPacotesReenviados)
+    }
   }
 
   public resetConnections(): void {
