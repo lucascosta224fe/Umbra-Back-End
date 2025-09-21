@@ -2,7 +2,7 @@ import { ResponseI, ComputerI } from "../models/response.interface";
 
 interface SeenPacket {
   sequenceNumber: number;
-  payloadLength: number;
+  Payloadlength: number;
 }
 
 interface TcpConnectionInfo {
@@ -56,7 +56,12 @@ export class PacketsService {
         this.retornoFront.protocols.tcp++;
 
         const connectionKey = `${ip.info.srcaddr}:${tcp.info.srcport}-${ip.info.dstaddr}:${tcp.info.dstport}`;
-        const packetIdentifier = `${tcp.info.seqnum}:${tcp.info.payloadLen}`;
+        const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
+        const packetIdentifier = `${tcp.info.seqno}:${tcpPayloadLength}`;
+        
+        console.log(connectionKey)
+        console.log('Payload:')
+        console.log(packetIdentifier)
 
         let connection = this.tcpConnections.get(connectionKey);
 
