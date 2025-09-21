@@ -47,7 +47,7 @@ export class SnifferService {
       .filter(
         (d: { addresses: any[] }) =>
           d.addresses.some(
-            (a: any) => a.addr && (a.addr.includes(".") || a.addr.includes(":"))
+            (a: any) => a.addr && (a.addr.includes(".") || a.addr.includes(":")) && a.addr !== "127.0.0.1" && a.addr !== "::1"
           ) // Verifica no array se atende aos requistos
       )
       .map((d: any) => {
