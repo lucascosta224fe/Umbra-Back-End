@@ -43,7 +43,6 @@ export class PacketsService {
   processPacket(): { macInfo: string; ipv4Info: { ipSrc: string, ipDst: string, totalLen: number } } {
     let macInfo: string = "";
     let ipv4Info = { ipSrc: "", ipDst: "", totalLen: 0 };
-    this.qtdPacketsResend = 0
 
     const eth = this.decoders.Ethernet(this.buffer);
 
@@ -99,11 +98,6 @@ export class PacketsService {
         // } else if (tcp.info.flags.psh) {
         //   // Pacote PSH, dados sendo enviados
         // }
-
-        // Verifica se o pacote TCP foi retransmitido
-        if (tcp.info.seqnum < tcp.info.acknum) {
-          this.retornoFront.qtdPacotesReenviados++;
-        }
 
         // Define tipo de pacote
         switch ((tcp.info.dstport, tcp.info.srcport)) {
@@ -197,12 +191,14 @@ export class PacketsService {
     console.log(`QtdPacotes2 ${this.qtdPacketsResend}`)
     if(this.qtdPacketsResend === 0 || qtdPackets === 0){
       this.retornoFront.qtdPacotesReenviados = 0
+      this.qtdPacketsResend = 0
       return this.retornoFront.qtdPacotesReenviados 
     } else {
     console.log(`PacotesTotais: ${qtdPackets}`)
     console.log(`PacotesReenviados: ${this.qtdPacketsResend}`)
     this.retornoFront.qtdPacotesReenviados = (this.qtdPacketsResend / qtdPackets * 100)
     console.log(this.retornoFront.qtdPacotesReenviados)
+    this.qtdPacketsResend = 0
     }
   }
 
