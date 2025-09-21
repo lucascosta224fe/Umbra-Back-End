@@ -11,6 +11,7 @@ export class SnifferService {
   buffer!: Buffer<ArrayBuffer>; // Tamanho Máximo de um pacote IPV4
   qtdPackets: number = 0;
   retornoFront!: ResponseI;
+  packetsService!: PacketsService;
 
   constructor() {
     this.cap = new Cap.Cap();
@@ -93,13 +94,13 @@ export class SnifferService {
     );
 
     this.cap.on("packet",  () => {
-      const {ipv4Info}: any = packetsService.processPacket()
-      this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego + ipv4Info.totalLen;
-      this.retornoFront.computers = realDevices;
-      this.retornoFront.qtdComputadores = realDevices.length;
       
       try {
-        packetsService.processPacket();
+        const {ipv4Info}: any = packetsService.processPacket()
+        this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego + ipv4Info.totalLen;
+        this.retornoFront.computers = realDevices;
+        this.retornoFront.qtdComputadores = realDevices.length;
+        
       } catch (err: any) {
         console.error("Erro ao decodificar pacote:", err.message);
       }
@@ -111,8 +112,9 @@ export class SnifferService {
       
       io.emit("packetData", this.retornoFront);
 
-      PacketsService.resetProperties(this.retornoFront)
-      this.qtdPackets = 0
+      PacketsService.resetProperties(this.retornoFront);
+      this.packetsService.resetConnections();
+      this.qtdPackets = 0;
 
     }, 5000);
   }
