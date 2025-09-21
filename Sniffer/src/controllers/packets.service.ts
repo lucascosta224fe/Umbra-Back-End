@@ -1,5 +1,5 @@
 import { ResponseI, ComputerI } from "../models/response.interface";
-import { SnifferService } from "./sniffer.service";
+// import { SnifferService } from "./sniffer.service";
 
 interface SeenPacket {
   sequenceNumber: number;
@@ -59,95 +59,9 @@ export class PacketsService {
       ipv4Info.totalLen = ip.info.totallen;
 
       if (ip.info.protocol === this.decoders.PROTOCOL.IP.TCP) {
-        const tcp = this.decoders.TCP(this.buffer, ip.offset);
-        this.retornoFront.protocols.tcp++;
-
-        // Create a single, consistent key for the connection, regardless of direction.
-        // This allows us to track packets sent by both sides.
-        let connectionKey;
-        if (ipv4Info.ipSrc < ipv4Info.ipDst) {
-          connectionKey = `${ipv4Info.ipSrc}:${tcp.info.srcport}-${ipv4Info.ipDst}:${tcp.info.dstport}`;
-        } else {
-          connectionKey = `${ipv4Info.ipDst}:${tcp.info.dstport}-${ipv4Info.ipSrc}:${tcp.info.srcport}`;
-        }
-
-        const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
-
-        // Attempt to retrieve the existing connection
-        let connection = this.tcpConnections.get(connectionKey);
-
-        // If the connection doesn't exist, create a new one
-        if (!connection) {
-          connection = {
-            sourceIp: ipv4Info.ipSrc,
-            destinationIp: ipv4Info.ipDst,
-            sourcePort: tcp.info.srcport,
-            destinationPort: tcp.info.dstport,
-            sentPackets: new Map<number, number>(),
-          };
-          this.tcpConnections.set(connectionKey, connection);
-        }
-
-        // Check for retransmission
-        if (connection.sentPackets.has(tcp.info.seqno) && connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength) {
-          this.qtdPacketsResend++;
-        } else {
-          connection.sentPackets.set(tcp.info.seqno, tcpPayloadLength);
-        }
-
-        // Verifica se o pacote TCP é um RST (pacote perdido)
-        if (tcp.info.flags.reset) {
-          this.retornoFront.qtdPacotesPerdidos++;
-        }
-
-        // if (tcp.info.flags.syn && tcp.info.flags.ack) {
-        //   // Pacote SYN-ACK, parte do handshake
-        // } else if (tcp.info.flags.syn) {
-        //   // Pacote SYN, início de uma nova conexão
-        // } else if (tcp.info.flags.ack) {
-        //   // Pacote ACK, parte do handshake ou confirmação de dados
-        // } else if (tcp.info.flags.fin) {
-        //   // Pacote FIN, término de conexão
-        // } else if (tcp.info.flags.psh) {
-        //   // Pacote PSH, dados sendo enviados
-        // }
-
-        // Define tipo de pacote
-        switch ((tcp.info.dstport, tcp.info.srcport)) {
-          case 80:
-            this.retornoFront.protocols.http++;
-            break;
-          case 443:
-            this.retornoFront.protocols.https++;
-            break;
-          case 20:
-          case 21:
-            this.retornoFront.protocols.ftp++;
-            break;
-          default:
-            this.retornoFront.protocols.other++;
-            break;
-        }
+        this._processTcpPacket(ip, ipv4Info);
       } else if (ip.info.protocol === this.decoders.PROTOCOL.IP.UDP) {
-        const udp = this.decoders.UDP(this.buffer, ip.offset);
-        this.retornoFront.protocols.udp++;
-
-        // Define tipo de pacote
-        switch ((udp.info.dstport, udp.info.srcport)) {
-          case 80:
-            this.retornoFront.protocols.http++;
-            break;
-          case 443:
-            this.retornoFront.protocols.https++;
-            break;
-          case 20:
-          case 21:
-            this.retornoFront.protocols.ftp++;
-            break;
-          default:
-            this.retornoFront.protocols.other++;
-            break;
-        }
+        this._processUdpPacket(ip);
       }
     }
 
@@ -155,6 +69,89 @@ export class PacketsService {
     this.assignMacToDevice(macInfo, ipv4Info);
     this.updateDevicePacketCount(ipv4Info);
     return { macInfo, ipv4Info };
+  }
+
+  private _processTcpPacket(ip: any, ipv4Info: { ipSrc: string; ipDst: string; totalLen: number }): void {
+    const tcp = this.decoders.TCP(this.buffer, ip.offset);
+    this.retornoFront.protocols.tcp++;
+
+    let connectionKey;
+    if (ipv4Info.ipSrc < ipv4Info.ipDst) {
+      connectionKey = `${ipv4Info.ipSrc}:${tcp.info.srcport}-${ipv4Info.ipDst}:${tcp.info.dstport}`;
+    } else {
+      connectionKey = `${ipv4Info.ipDst}:${tcp.info.dstport}-${ipv4Info.ipSrc}:${tcp.info.srcport}`;
+    }
+
+    const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
+
+    let connection = this.tcpConnections.get(connectionKey);
+
+    if (!connection) {
+      connection = {
+        sourceIp: ipv4Info.ipSrc,
+        destinationIp: ipv4Info.ipDst,
+        sourcePort: tcp.info.srcport,
+        destinationPort: tcp.info.dstport,
+        sentPackets: new Map<number, number>(),
+      };
+      this.tcpConnections.set(connectionKey, connection);
+    }
+
+    if (connection.sentPackets.has(tcp.info.seqno) && connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength) {
+      this.qtdPacketsResend++;
+    } else {
+      connection.sentPackets.set(tcp.info.seqno, tcpPayloadLength);
+    }
+
+    // Verifica se o pacote TCP é um RST (pacote perdido)
+    if (tcp.info.flags.reset) {
+      this.retornoFront.qtdPacotesPerdidos++;
+    }
+
+    this._updateProtocolCount(ip.info.protocol, tcp.info.dstport, tcp.info.srcport);
+  }
+
+  private _processUdpPacket(ip: any): void {
+    const udp = this.decoders.UDP(this.buffer, ip.offset);
+    this.retornoFront.protocols.udp++;
+
+    this._updateProtocolCount(ip.info.protocol, udp.info.dstport, udp.info.srcport);
+  }
+
+  private _updateProtocolCount(
+    ipProtocol: number,
+    dstPort: number,
+    srcPort: number
+  ): void {
+    const isTCP = ipProtocol === this.decoders.PROTOCOL.IP.TCP;
+    const isUDP = ipProtocol === this.decoders.PROTOCOL.IP.UDP;
+
+    if (isTCP) {
+      if (dstPort === 80 || srcPort === 80) {
+        this.retornoFront.protocols.http++;
+      } else if (dstPort === 443 || srcPort === 443) {
+        this.retornoFront.protocols.https++;
+      } else if (
+        dstPort === 20 ||
+        dstPort === 21 ||
+        srcPort === 20 ||
+        srcPort === 21
+      ) {
+        this.retornoFront.protocols.ftp++;
+      } else {
+        this.retornoFront.protocols.other++;
+      }
+    } else if (isUDP) {
+      if (dstPort === 443 || srcPort === 443) {
+        this.retornoFront.protocols.other++;
+      } else {
+        // Se for UDP e a porta não for 443, também é "other"
+        this.retornoFront.protocols.other++;
+      }
+    } else {
+      // Qualquer outro protocolo IP
+      this.retornoFront.protocols.other++;
+    }
   }
 
   private assignMacToDevice(
@@ -198,6 +195,11 @@ export class PacketsService {
     retornoFront.inputOutput.input = 0;
     retornoFront.inputOutput.output = 0;
     retornoFront.protocols.other = 0;
+
+    retornoFront.computers.forEach(device => {
+      device.packetsIn = 0;
+      device.packetsOut = 0;
+    });
   }
 
   public packetsResend(qtdPackets: number) {

@@ -15,7 +15,7 @@ export class SnifferService {
 
   constructor() {
     this.cap = new Cap.Cap();
-    this.filter = "tcp port 80 or tcp port 443 or tcp port 20 or tcp port 21"; // TCP nas portas HTTP, HTTPS e FTP
+    this.filter = "tcp port 80 or tcp port 443 or tcp port 20 or tcp port 21 or udp port 20 or udp port 21 or udp port 443 or udp port 80"; // TCP nas portas HTTP, HTTPS e FTP
     // this.filter = 'tcp port 3000 or tcp port 20 or tcp port 3001'; // usar esse depois
     this.bufSize = 10485760; // Tamanho Máximo de um pedaço pacote normalmente é 9MB mas serve como garantia
     this.buffer = Buffer.alloc(65535); // Tamanho Máximo de um pacote IPV4
@@ -112,7 +112,7 @@ export class SnifferService {
     
     setInterval(() => {
       this.retornoFront.taxaTráfego = (this.retornoFront.taxaTráfego / 5)
-      
+      this.packetsService.updateInputOutput();
       this.packetsService.packetsResend(this.qtdPackets);
       io.emit("packetData", this.retornoFront);
 
