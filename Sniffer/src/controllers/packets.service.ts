@@ -2,6 +2,7 @@ import {
   ResponseI,
   ComputerI,
   TcpConnectionInfoI,
+  UdpRequestInfo,
 } from "../models/response.interface";
 
 export class PacketsService {
@@ -12,6 +13,8 @@ export class PacketsService {
   retornoFront: ResponseI;
   tcpConnections: Map<string, TcpConnectionInfoI>;
   qtdPacketsResend: number;
+  private readonly udpRequests: Map<string, UdpRequestInfo> = new Map();
+  private allRtts: number[] = [];
 
   constructor(
     buffer: Buffer<ArrayBuffer>,
@@ -49,7 +52,6 @@ export class PacketsService {
       }
     }
 
-    console.log(`Qtd PacotesResend ${this.qtdPacketsResend}`);
     this.assignMacToDevice(eth.info.srcmac, ipv4Info);
     this.updateDevicePacketCount(ipv4Info);
     this.retornoFront.taxaTráfego =
@@ -87,6 +89,22 @@ export class PacketsService {
       };
       this.tcpConnections.set(connectionKey, connection);
     }
+    
+    const isSyn = (tcp.info.flags & 2) !== 0;
+    const isAck = (tcp.info.flags & 16) !== 0;
+    const isRst = (tcp.info.flags & 4) !== 0;
+
+    // Se for um pacote SYN (requisição inicial)
+    if (isSyn && !isAck) {
+      connection.sentSynTime = Date.now();
+    }
+
+    // Se for um pacote SYN-ACK (resposta)
+    if (isSyn && isAck && connection.sentSynTime) {
+      const rtt = Date.now() - connection.sentSynTime;
+      this.allRtts.push(rtt);
+      delete connection.sentSynTime;
+    }
 
     const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
 
@@ -100,7 +118,7 @@ export class PacketsService {
     }
 
     // Verifica se o pacote TCP é um RST (pacote perdido)
-    if (tcp.info.flags.reset) {
+    if (isRst) {
       this.retornoFront.qtdPacotesPerdidos++;
     }
 
@@ -122,6 +140,23 @@ export class PacketsService {
         device.ipv4.includes(ipv4Info.ipSrc) ||
         device.ipv4.includes(ipv4Info.ipDst)
     )!.protocols.udp++;
+
+    const outgoingKey = `${ipv4Info.ipSrc}:${udp.info.srcport}-${ipv4Info.ipDst}:${udp.info.dstport}`;
+    const incomingKey = `${ipv4Info.ipDst}:${udp.info.dstport}-${ipv4Info.ipSrc}:${udp.info.srcport}`;
+
+    const isOutgoing = this.mappedDevices.some(d => d.ipv4.includes(ipv4Info.ipSrc));
+    const isIncoming = this.mappedDevices.some(d => d.ipv4.includes(ipv4Info.ipDst));
+
+    if (isOutgoing) {
+      this.udpRequests.set(outgoingKey, { timestamp: Date.now() });
+    }
+
+    if (isIncoming && this.udpRequests.has(incomingKey)) {
+      const requestInfo = this.udpRequests.get(incomingKey)!;
+      const rtt = Date.now() - requestInfo.timestamp;
+      this.allRtts.push(rtt);
+      this.udpRequests.delete(incomingKey);
+    }
 
     this._updateProtocolCount(
       ip.info.protocol,
@@ -258,22 +293,20 @@ export class PacketsService {
   }
 
   public packetsResend(qtdPackets: number) {
-    console.log(`QtdPacotes2 ${this.qtdPacketsResend}`);
     if (this.qtdPacketsResend === 0 || qtdPackets === 0) {
       this.retornoFront.qtdPacotesReenviados = 0;
       this.qtdPacketsResend = 0;
     } else {
-      console.log(`PacotesTotais: ${qtdPackets}`);
-      console.log(`PacotesReenviados: ${this.qtdPacketsResend}`);
       this.retornoFront.qtdPacotesReenviados =
         (this.qtdPacketsResend / qtdPackets) * 100;
-      console.log(this.retornoFront.qtdPacotesReenviados);
       this.qtdPacketsResend = 0;
     }
   }
 
   public resetConnections(): void {
     this.tcpConnections.clear();
+    this.udpRequests.clear();
+    this.allRtts = [];
   }
 
   public updateInputOutput(): void {
@@ -287,5 +320,14 @@ export class PacketsService {
 
     this.retornoFront.inputOutput.input = totalInput;
     this.retornoFront.inputOutput.output = totalOutput;
+  }
+
+  public calculateAverageResponseTime(): void {
+    if (this.allRtts.length > 0) {
+      const sum = this.allRtts.reduce((acc, curr) => acc + curr, 0);
+      this.retornoFront.tempoMedioResposta = sum / this.allRtts.length;
+    } else {
+      this.retornoFront.tempoMedioResposta = 0;
+    }
   }
 }

@@ -82,7 +82,7 @@ export class SnifferService {
       });
 
     //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
-    const device = Cap.findDevice("172.29.62.226");
+    const device = Cap.findDevice("192.168.15.5");
     if (!device) {
       console.error(
         "Nenhuma interface disponível. Verifique permissão / drivers."
@@ -122,9 +122,11 @@ export class SnifferService {
     });
 
     setInterval(() => {
+      
       this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego / 5;
       this.packetsService.updateInputOutput();
       this.packetsService.packetsResend(this.qtdPackets);
+      this.packetsService.calculateAverageResponseTime();
       io.emit("packetData", this.retornoFront);
 
       this.packetsService.resetProperties();

@@ -39,4 +39,9 @@ export interface TcpConnectionInfoI {
   sourcePort: number;
   destinationPort: number;
   sentPackets: Map<number, number>;
+  sentSynTime?: number;
+}
+
+export interface UdpRequestInfo {
+  timestamp: number;
 }
