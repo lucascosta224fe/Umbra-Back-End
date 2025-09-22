@@ -15,11 +15,12 @@ export class SnifferService {
 
   constructor() {
     this.cap = new Cap.Cap();
-    this.filter = "tcp port 80 or tcp port 443 or tcp port 20 or tcp port 21 or udp port 20 or udp port 21 or udp port 443 or udp port 80"; // TCP nas portas HTTP, HTTPS e FTP
+    this.filter =
+      "tcp port 80 or tcp port 443 or tcp port 20 or tcp port 21 or udp port 20 or udp port 21 or udp port 443 or udp port 80"; // TCP nas portas HTTP, HTTPS e FTP
     // this.filter = 'tcp port 3000 or tcp port 20 or tcp port 3001'; // usar esse depois
     this.bufSize = 10485760; // Tamanho Máximo de um pedaço pacote normalmente é 9MB mas serve como garantia
     this.buffer = Buffer.alloc(65535); // Tamanho Máximo de um pacote IPV4
-    this.qtdPackets = 0
+    this.qtdPackets = 0;
     this.retornoFront = {
       qtdComputadores: 0,
       qtdPacotesPerdidos: 0,
@@ -47,13 +48,18 @@ export class SnifferService {
       .filter(
         (d: { addresses: any[] }) =>
           d.addresses.some(
-            (a: any) => a.addr && (a.addr.includes(".") || a.addr.includes(":")) && a.addr !== "127.0.0.1" && a.addr !== "::1"
+            (a: any) =>
+              a.addr &&
+              (a.addr.includes(".") || a.addr.includes(":")) &&
+              a.addr !== "127.0.0.1" &&
+              a.addr !== "::1"
           ) // Verifica no array se atende aos requistos
       )
       .map((d: any) => {
         const ipv4Addresses = d.addresses
           .filter((a: any) => a.addr.includes("."))
           .map((a: any) => a.addr);
+        console.log(ipv4Addresses);
         const ipv6Addresses = d.addresses
           .filter((a: any) => a?.addr.includes(":"))
           .map((a: any) => a.addr);
@@ -64,11 +70,19 @@ export class SnifferService {
           mac: null,
           packetsIn: 0,
           packetsOut: 0,
+          protocols: {
+            http: 0,
+            https: 0,
+            ftp: 0,
+            tcp: 0,
+            udp: 0,
+            other: 0,
+          },
         };
       });
 
     //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
-    const device = Cap.findDevice("192.168.15.5");
+    const device = Cap.findDevice("172.29.62.226");
     if (!device) {
       console.error(
         "Nenhuma interface disponível. Verifique permissão / drivers."
@@ -96,30 +110,26 @@ export class SnifferService {
 
     this.packetsService = packetsService;
 
-    this.cap.on("packet",  () => {
-      this.qtdPackets++
+    this.cap.on("packet", () => {
+      this.qtdPackets++;
+      this.retornoFront.computers = realDevices;
+      this.retornoFront.qtdComputadores = realDevices.length;
       try {
-        const {ipv4Info}: any = packetsService.processPacket()
-        this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego + ipv4Info.totalLen;
-        this.retornoFront.computers = realDevices;
-        this.retornoFront.qtdComputadores = realDevices.length;
-        
+        packetsService.processPacket();
       } catch (err: any) {
         console.error("Erro ao decodificar pacote:", err.message);
       }
     });
 
-    
     setInterval(() => {
-      this.retornoFront.taxaTráfego = (this.retornoFront.taxaTráfego / 5)
+      this.retornoFront.taxaTráfego = this.retornoFront.taxaTráfego / 5;
       this.packetsService.updateInputOutput();
       this.packetsService.packetsResend(this.qtdPackets);
       io.emit("packetData", this.retornoFront);
 
-      PacketsService.resetProperties(this.retornoFront);
+      this.packetsService.resetProperties();
       this.packetsService.resetConnections();
       this.qtdPackets = 0;
-
     }, 5000);
   }
 }

@@ -4,6 +4,7 @@ export interface ComputerI {
   ipv4: string;
   ipv6: string;
   mac: string;
+  protocols: ProtocolsI;
   packetsIn: number;
   packetsOut: number;
 }
@@ -30,4 +31,12 @@ export interface ProtocolsI {
 export interface InputOutput {
   input: number;
   output: number;
+}
+
+export interface TcpConnectionInfoI {
+  sourceIp: string;
+  destinationIp: string;
+  sourcePort: number;
+  destinationPort: number;
+  sentPackets: Map<number, number>;
 }

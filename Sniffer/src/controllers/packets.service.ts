@@ -1,18 +1,8 @@
-import { ResponseI, ComputerI } from "../models/response.interface";
-// import { SnifferService } from "./sniffer.service";
-
-interface SeenPacket {
-  sequenceNumber: number;
-  Payloadlength: number;
-}
-
-interface TcpConnectionInfo {
-  sourceIp: string;
-  destinationIp: string;
-  sourcePort: number;
-  destinationPort: number;
-  sentPackets: Map<number, number>;
-}
+import {
+  ResponseI,
+  ComputerI,
+  TcpConnectionInfoI,
+} from "../models/response.interface";
 
 export class PacketsService {
   buffer: Buffer<ArrayBuffer>;
@@ -20,7 +10,7 @@ export class PacketsService {
   decoders: any;
   mappedDevices: ComputerI[];
   retornoFront: ResponseI;
-  private readonly tcpConnections: Map<string, TcpConnectionInfo>;
+  tcpConnections: Map<string, TcpConnectionInfoI>;
   qtdPacketsResend: number;
 
   constructor(
@@ -36,20 +26,14 @@ export class PacketsService {
     this.decoders = decoders;
     this.mappedDevices = mappedDevices;
     this.retornoFront = retornoFront;
-    this.tcpConnections = new Map<string, TcpConnectionInfo>();
+    this.tcpConnections = new Map();
     this.qtdPacketsResend = qtdPacketsResend;
   }
 
-  processPacket(): {
-    macInfo: string;
-    ipv4Info: { ipSrc: string; ipDst: string; totalLen: number };
-  } {
-    let macInfo: string = "";
+  public processPacket(): void {
     let ipv4Info = { ipSrc: "", ipDst: "", totalLen: 0 };
 
     const eth = this.decoders.Ethernet(this.buffer);
-
-    macInfo = eth.info.srcmac;
 
     if (eth.info.type === this.decoders.PROTOCOL.ETHERNET.IPV4) {
       const ip = this.decoders.IPV4(this.buffer, eth.offset);
@@ -61,19 +45,28 @@ export class PacketsService {
       if (ip.info.protocol === this.decoders.PROTOCOL.IP.TCP) {
         this._processTcpPacket(ip, ipv4Info);
       } else if (ip.info.protocol === this.decoders.PROTOCOL.IP.UDP) {
-        this._processUdpPacket(ip);
+        this._processUdpPacket(ip, ipv4Info);
       }
     }
 
     console.log(`Qtd PacotesResend ${this.qtdPacketsResend}`);
-    this.assignMacToDevice(macInfo, ipv4Info);
+    this.assignMacToDevice(eth.info.srcmac, ipv4Info);
     this.updateDevicePacketCount(ipv4Info);
-    return { macInfo, ipv4Info };
+    this.retornoFront.taxaTráfego =
+      this.retornoFront.taxaTráfego + ipv4Info.totalLen;
   }
 
-  private _processTcpPacket(ip: any, ipv4Info: { ipSrc: string; ipDst: string; totalLen: number }): void {
+  private _processTcpPacket(
+    ip: any,
+    ipv4Info: { ipSrc: string; ipDst: string; totalLen: number }
+  ): void {
     const tcp = this.decoders.TCP(this.buffer, ip.offset);
     this.retornoFront.protocols.tcp++;
+    this.retornoFront.computers.find(
+      (device) =>
+        device.ipv4.includes(ipv4Info.ipSrc) ||
+        device.ipv4.includes(ipv4Info.ipDst)
+    )!.protocols.tcp++;
 
     let connectionKey;
     if (ipv4Info.ipSrc < ipv4Info.ipDst) {
@@ -81,8 +74,6 @@ export class PacketsService {
     } else {
       connectionKey = `${ipv4Info.ipDst}:${tcp.info.dstport}-${ipv4Info.ipSrc}:${tcp.info.srcport}`;
     }
-
-    const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
 
     let connection = this.tcpConnections.get(connectionKey);
 
@@ -97,7 +88,12 @@ export class PacketsService {
       this.tcpConnections.set(connectionKey, connection);
     }
 
-    if (connection.sentPackets.has(tcp.info.seqno) && connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength) {
+    const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
+
+    if (
+      connection.sentPackets.has(tcp.info.seqno) &&
+      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength
+    ) {
       this.qtdPacketsResend++;
     } else {
       connection.sentPackets.set(tcp.info.seqno, tcpPayloadLength);
@@ -108,49 +104,100 @@ export class PacketsService {
       this.retornoFront.qtdPacotesPerdidos++;
     }
 
-    this._updateProtocolCount(ip.info.protocol, tcp.info.dstport, tcp.info.srcport);
+    this._updateProtocolCount(
+      ip.info.protocol,
+      { dstPort: tcp.info.dstport, srcPort: tcp.info.srcport },
+      ipv4Info
+    );
   }
 
-  private _processUdpPacket(ip: any): void {
+  private _processUdpPacket(
+    ip: any,
+    ipv4Info: { ipSrc: string; ipDst: string; totalLen: number }
+  ): void {
     const udp = this.decoders.UDP(this.buffer, ip.offset);
     this.retornoFront.protocols.udp++;
+    this.retornoFront.computers.find(
+      (device) =>
+        device.ipv4.includes(ipv4Info.ipSrc) ||
+        device.ipv4.includes(ipv4Info.ipDst)
+    )!.protocols.udp++;
 
-    this._updateProtocolCount(ip.info.protocol, udp.info.dstport, udp.info.srcport);
+    this._updateProtocolCount(
+      ip.info.protocol,
+      udp.info.dstport,
+      udp.info.srcport
+    );
   }
 
   private _updateProtocolCount(
     ipProtocol: number,
-    dstPort: number,
-    srcPort: number
+    ports: { dstPort: number; srcPort: number },
+    ipv4Info: { ipSrc: string; ipDst: string }
   ): void {
     const isTCP = ipProtocol === this.decoders.PROTOCOL.IP.TCP;
     const isUDP = ipProtocol === this.decoders.PROTOCOL.IP.UDP;
 
     if (isTCP) {
-      if (dstPort === 80 || srcPort === 80) {
+      if (ports.dstPort === 80 || ports.srcPort === 80) {
         this.retornoFront.protocols.http++;
-      } else if (dstPort === 443 || srcPort === 443) {
+        this.retornoFront.computers.find(
+          (device) =>
+            device.ipv4.includes(ipv4Info.ipSrc) ||
+            device.ipv4.includes(ipv4Info.ipDst)
+        )!.protocols.http++;
+      } else if (ports.dstPort === 443 || ports.srcPort === 443) {
         this.retornoFront.protocols.https++;
+        this.retornoFront.computers.find(
+          (device) =>
+            device.ipv4.includes(ipv4Info.ipSrc) ||
+            device.ipv4.includes(ipv4Info.ipDst)
+        )!.protocols.https++;
       } else if (
-        dstPort === 20 ||
-        dstPort === 21 ||
-        srcPort === 20 ||
-        srcPort === 21
+        ports.dstPort === 20 ||
+        ports.dstPort === 21 ||
+        ports.srcPort === 20 ||
+        ports.srcPort === 21
       ) {
         this.retornoFront.protocols.ftp++;
+        this.retornoFront.computers.find(
+          (device) =>
+            device.ipv4.includes(ipv4Info.ipSrc) ||
+            device.ipv4.includes(ipv4Info.ipDst)
+        )!.protocols.ftp++;
       } else {
         this.retornoFront.protocols.other++;
+        this.retornoFront.computers.find(
+          (device) =>
+            device.ipv4.includes(ipv4Info.ipSrc) ||
+            device.ipv4.includes(ipv4Info.ipDst)
+        )!.protocols.other++;
       }
     } else if (isUDP) {
-      if (dstPort === 443 || srcPort === 443) {
+      if (ports.dstPort === 443 || ports.srcPort === 443) {
         this.retornoFront.protocols.other++;
+        this.retornoFront.computers.find(
+          (device) =>
+            device.ipv4.includes(ipv4Info.ipSrc) ||
+            device.ipv4.includes(ipv4Info.ipDst)
+        )!.protocols.other++;
       } else {
         // Se for UDP e a porta não for 443, também é "other"
         this.retornoFront.protocols.other++;
+        this.retornoFront.computers.find(
+          (device) =>
+            device.ipv4.includes(ipv4Info.ipSrc) ||
+            device.ipv4.includes(ipv4Info.ipDst)
+        )!.protocols.other++;
       }
     } else {
       // Qualquer outro protocolo IP
       this.retornoFront.protocols.other++;
+      this.retornoFront.computers.find(
+        (device) =>
+          device.ipv4.includes(ipv4Info.ipSrc) ||
+          device.ipv4.includes(ipv4Info.ipDst)
+      )!.protocols.other++;
     }
   }
 
@@ -183,22 +230,30 @@ export class PacketsService {
     }
   }
 
-  static resetProperties(retornoFront: ResponseI) {
-    retornoFront.taxaTráfego = 0;
-    retornoFront.protocols.ftp = 0;
-    retornoFront.protocols.http = 0;
-    retornoFront.protocols.https = 0;
-    retornoFront.protocols.tcp = 0;
-    retornoFront.protocols.udp = 0;
-    retornoFront.qtdPacotesPerdidos = 0;
-    retornoFront.qtdPacotesReenviados = 0;
-    retornoFront.inputOutput.input = 0;
-    retornoFront.inputOutput.output = 0;
-    retornoFront.protocols.other = 0;
+  resetProperties() {
+    this.retornoFront.taxaTráfego = 0;
+    this.retornoFront.protocols.ftp = 0;
+    this.retornoFront.protocols.http = 0;
+    this.retornoFront.protocols.https = 0;
+    this.retornoFront.protocols.tcp = 0;
+    this.retornoFront.protocols.udp = 0;
+    this.retornoFront.qtdPacotesPerdidos = 0;
+    this.retornoFront.qtdPacotesReenviados = 0;
+    this.retornoFront.inputOutput.input = 0;
+    this.retornoFront.inputOutput.output = 0;
+    this.retornoFront.protocols.other = 0;
 
-    retornoFront.computers.forEach(device => {
+    this.retornoFront.computers.forEach((device) => {
       device.packetsIn = 0;
       device.packetsOut = 0;
+      device.protocols = {
+        http: 0,
+        https: 0,
+        ftp: 0,
+        tcp: 0,
+        udp: 0,
+        other: 0,
+      };
     });
   }
 
@@ -225,7 +280,7 @@ export class PacketsService {
     let totalInput = 0;
     let totalOutput = 0;
 
-    this.mappedDevices.forEach(device => {
+    this.mappedDevices.forEach((device) => {
       totalInput += device.packetsIn;
       totalOutput += device.packetsOut;
     });
@@ -233,5 +288,4 @@ export class PacketsService {
     this.retornoFront.inputOutput.input = totalInput;
     this.retornoFront.inputOutput.output = totalOutput;
   }
-
 }
