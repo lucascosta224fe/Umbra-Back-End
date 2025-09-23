@@ -64,62 +64,65 @@ export class PacketsService {
   ): void {
     const tcp = this.decoders.TCP(this.buffer, ip.offset);
     this.retornoFront.protocols.tcp++;
-    this.retornoFront.computers.find(
+
+    let localAddress, externalAddress;
+    // Verifica se o IP de origem pertence a um dos dispositivos mapeados
+    const isOutgoing = this.mappedDevices.some(d => d.ipv4.includes(ipv4Info.ipSrc));
+
+    if (isOutgoing) {
+      localAddress = `${ipv4Info.ipSrc}:${tcp.info.srcport}`;
+      externalAddress = `${ipv4Info.ipDst}:${tcp.info.dstport}`;
+    } else {
+      // Se o pacote não é de saída, ele deve ser de entrada
+      localAddress = `${ipv4Info.ipDst}:${tcp.info.dstport}`;
+      externalAddress = `${ipv4Info.ipSrc}:${tcp.info.srcport}`;
+    }
+
+    // Encontra o computador local associado
+    const localComputer = this.mappedDevices.find(
       (device) =>
         device.ipv4.includes(ipv4Info.ipSrc) ||
         device.ipv4.includes(ipv4Info.ipDst)
-    )!.protocols.tcp++;
+    );
 
-    let connectionKey;
-    if (ipv4Info.ipSrc < ipv4Info.ipDst) {
-      connectionKey = `${ipv4Info.ipSrc}:${tcp.info.srcport}-${ipv4Info.ipDst}:${tcp.info.dstport}`;
-    } else {
-      connectionKey = `${ipv4Info.ipDst}:${tcp.info.dstport}-${ipv4Info.ipSrc}:${tcp.info.srcport}`;
+    if (!localComputer) {
+      return;
     }
 
-    let connection = this.tcpConnections.get(connectionKey);
+    // Encontra a sessão existente ou cria uma nova
+    let sessionToUpdate = localComputer.sessions.find(
+      s => s.localAddress === localAddress && s.externalAddress === externalAddress
+    );
 
-    if (!connection) {
-      connection = {
-        sourceIp: ipv4Info.ipSrc,
-        destinationIp: ipv4Info.ipDst,
-        sourcePort: tcp.info.srcport,
-        destinationPort: tcp.info.dstport,
-        sentPackets: new Map<number, number>(),
+    if (!sessionToUpdate) {
+      sessionToUpdate = {
+        protocol: 'TCP',
+        localAddress: localAddress,
+        externalAddress: externalAddress,
+        status: 'NEW',
       };
-      this.tcpConnections.set(connectionKey, connection);
+      localComputer.sessions.push(sessionToUpdate);
     }
-    
+
     const isSyn = (tcp.info.flags & 2) !== 0;
     const isAck = (tcp.info.flags & 16) !== 0;
+    const isFin = (tcp.info.flags & 1) !== 0;
     const isRst = (tcp.info.flags & 4) !== 0;
 
-    // Se for um pacote SYN (requisição inicial)
-    if (isSyn && !isAck) {
-      connection.sentSynTime = Date.now();
-    }
-
-    // Se for um pacote SYN-ACK (resposta)
-    if (isSyn && isAck && connection.sentSynTime) {
-      const rtt = Date.now() - connection.sentSynTime;
-      this.allRtts.push(rtt);
-      delete connection.sentSynTime;
-    }
-
-    const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
-
-    if (
-      connection.sentPackets.has(tcp.info.seqno) &&
-      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength
-    ) {
-      this.qtdPacketsResend++;
-    } else {
-      connection.sentPackets.set(tcp.info.seqno, tcpPayloadLength);
-    }
-
-    // Verifica se o pacote TCP é um RST (pacote perdido)
     if (isRst) {
-      this.retornoFront.qtdPacotesPerdidos++;
+      sessionToUpdate.status = 'CLOSED_RST';
+    } else if (isFin) {
+      const isLocalFin = (isOutgoing); // Se o pacote de FIN é de saída, o local iniciou o fechamento
+
+      if (isLocalFin) {
+        sessionToUpdate.status = 'TIME_WAIT';
+      } else {
+        sessionToUpdate.status = 'CLOSE_WAIT';
+      }
+    } else if (isSyn && !isAck) {
+      sessionToUpdate.status = 'SYN_SENT';
+    } else if (isSyn && isAck) {
+      sessionToUpdate.status = 'ESTABLISHED';
     }
 
     this._updateProtocolCount(
@@ -289,6 +292,7 @@ export class PacketsService {
         udp: 0,
         other: 0,
       };
+      device.sessions = [];
     });
   }
 
@@ -307,6 +311,7 @@ export class PacketsService {
     this.tcpConnections.clear();
     this.udpRequests.clear();
     this.allRtts = [];
+    
   }
 
   public updateInputOutput(): void {

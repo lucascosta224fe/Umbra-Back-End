@@ -12,6 +12,8 @@ export class SnifferService {
   qtdPackets: number = 0;
   retornoFront!: ResponseI;
   packetsService!: PacketsService;
+  private chartHistory: Map<string, { time: number; packages: number; tcpError: number }[]> = new Map();
+  private timeElapsed: number = 0;
 
   constructor() {
     this.cap = new Cap.Cap();
@@ -78,6 +80,8 @@ export class SnifferService {
             udp: 0,
             other: 0,
           },
+          lineChartData: [],
+          sessions: []
         };
       });
 
@@ -127,8 +131,48 @@ export class SnifferService {
       this.packetsService.updateInputOutput();
       this.packetsService.packetsResend(this.qtdPackets);
       this.packetsService.calculateAverageResponseTime();
-      io.emit("packetData", this.retornoFront);
 
+     this.timeElapsed += 5;
+
+    this.retornoFront.computers.forEach(computer => {
+      
+        // Pega a quantidade de pacotes exata de cada computador.
+        const packages = computer.packetsIn + computer.packetsOut;
+
+        const tcpError = this.retornoFront.qtdPacotesPerdidos + this.retornoFront.qtdPacotesReenviados;
+
+        let history = this.chartHistory.get(computer.ipv4);
+        if (!history) {
+            history = [];
+            this.chartHistory.set(computer.ipv4, history);
+        }
+
+        history.push({
+            time: this.timeElapsed,
+            packages: packages,
+            tcpError: tcpError
+        });
+
+        // Mantém apenas os últimos 6 pontos (30 segundos).
+        if (history.length > 6) {
+            history.shift();
+        }
+
+        computer.lineChartData = history.map((point, index) => ({
+            time: (index + 1) * 5,
+            packages: point.packages,
+            tcpError: point.tcpError
+        }));
+    });
+
+    io.emit("packetData", this.retornoFront);
+     // Verificação de segurança antes de tentar acessar o índice
+  if (this.retornoFront.computers.length > 1) {
+    console.log(this.retornoFront.computers[1].sessions);
+  } else {
+    console.log("No second computer found in the array to log its data.");
+  }
+    
       this.packetsService.resetProperties();
       this.packetsService.resetConnections();
       this.qtdPackets = 0;
