@@ -104,7 +104,7 @@ export class SnifferService {
     // });
 
     //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
-    const device = Cap.findDevice("172.24.158.246");
+    const device = Cap.findDevice("192.168.15.5");
     if (!device) {
       console.error(
         "Nenhuma interface disponível. Verifique permissão / drivers."
@@ -157,7 +157,7 @@ export class SnifferService {
         // Pega a quantidade de pacotes exata de cada computador.
         const packages = computer.packetsIn + computer.packetsOut;
 
-        const tcpError = this.retornoFront.qtdPacotesPerdidos + this.retornoFront.qtdPacotesReenviados;
+        const tcpError = (this.retornoFront.qtdPacotesReenviados * this.qtdPackets / 100)  + this.retornoFront.qtdPacotesPerdidos;
 
         let history = this.chartHistory.get(computer.ipv4[0]);
         if (!history) {
@@ -185,11 +185,6 @@ export class SnifferService {
 
     io.emit("packetData", this.retornoFront);
      // Verificação de segurança antes de tentar acessar o índice
-  if (this.retornoFront.computers.length > 1) {
-    console.log(this.retornoFront.computers[1].sessions);
-  } else {
-    console.log("No second computer found in the array to log its data.");
-  }
     
       this.packetsService.resetProperties();
       this.packetsService.resetConnections();
