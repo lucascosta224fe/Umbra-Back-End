@@ -104,6 +104,26 @@ export class PacketsService {
       localComputer.sessions.push(sessionToUpdate);
     }
 
+    let connectionKey;
+    if (ipv4Info.ipSrc < ipv4Info.ipDst) {
+      connectionKey = `${ipv4Info.ipSrc}:${tcp.info.srcport}-${ipv4Info.ipDst}:${tcp.info.dstport}`;
+    } else {
+      connectionKey = `${ipv4Info.ipDst}:${tcp.info.dstport}-${ipv4Info.ipSrc}:${tcp.info.srcport}`;
+    }
+
+    let connection = this.tcpConnections.get(connectionKey);
+
+    if (!connection) {
+      connection = {
+        sourceIp: ipv4Info.ipSrc,
+        destinationIp: ipv4Info.ipDst,
+        sourcePort: tcp.info.srcport,
+        destinationPort: tcp.info.dstport,
+        sentPackets: new Map<number, number>(),
+      };
+      this.tcpConnections.set(connectionKey, connection);
+    }
+
     const isSyn = (tcp.info.flags & 2) !== 0;
     const isAck = (tcp.info.flags & 16) !== 0;
     const isFin = (tcp.info.flags & 1) !== 0;
@@ -123,6 +143,34 @@ export class PacketsService {
       sessionToUpdate.status = 'SYN_SENT';
     } else if (isSyn && isAck) {
       sessionToUpdate.status = 'ESTABLISHED';
+    }
+
+    // Se for um pacote SYN (requisição inicial)
+    if (isSyn && !isAck) {
+      connection.sentSynTime = Date.now();
+    }
+
+    // Se for um pacote SYN-ACK (resposta)
+    if (isSyn && isAck && connection.sentSynTime) {
+      const rtt = Date.now() - connection.sentSynTime;
+      this.allRtts.push(rtt);
+      delete connection.sentSynTime;
+    }
+
+    const tcpPayloadLength = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
+
+    if (
+      connection.sentPackets.has(tcp.info.seqno) &&
+      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength
+    ) {
+      this.qtdPacketsResend++;
+    } else {
+      connection.sentPackets.set(tcp.info.seqno, tcpPayloadLength);
+    }
+
+    // Verifica se o pacote TCP é um RST (pacote perdido)
+    if (isRst) {
+      this.retornoFront.qtdPacotesPerdidos++;
     }
 
     this._updateProtocolCount(
