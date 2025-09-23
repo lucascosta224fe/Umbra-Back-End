@@ -65,6 +65,12 @@ export class PacketsService {
     const tcp = this.decoders.TCP(this.buffer, ip.offset);
     this.retornoFront.protocols.tcp++;
 
+    this.retornoFront.computers.find(
+      (device) =>
+        device.ipv4.includes(ipv4Info.ipSrc) ||
+        device.ipv4.includes(ipv4Info.ipDst)
+    )!.protocols.tcp++;
+
     let localAddress, externalAddress;
     // Verifica se o IP de origem pertence a um dos dispositivos mapeados
     const isOutgoing = this.mappedDevices.some(d => d.ipv4.includes(ipv4Info.ipSrc));
@@ -224,68 +230,52 @@ export class PacketsService {
     const isTCP = ipProtocol === this.decoders.PROTOCOL.IP.TCP;
     const isUDP = ipProtocol === this.decoders.PROTOCOL.IP.UDP;
 
-    if (isTCP) {
-      if (ports.dstPort === 80 || ports.srcPort === 80) {
-        this.retornoFront.protocols.http++;
-        this.retornoFront.computers.find(
-          (device) =>
-            device.ipv4.includes(ipv4Info.ipSrc) ||
-            device.ipv4.includes(ipv4Info.ipDst)
-        )!.protocols.http++;
-      } else if (ports.dstPort === 443 || ports.srcPort === 443) {
-        this.retornoFront.protocols.https++;
-        this.retornoFront.computers.find(
-          (device) =>
-            device.ipv4.includes(ipv4Info.ipSrc) ||
-            device.ipv4.includes(ipv4Info.ipDst)
-        )!.protocols.https++;
-      } else if (
-        ports.dstPort === 20 ||
-        ports.dstPort === 21 ||
-        ports.srcPort === 20 ||
-        ports.srcPort === 21
-      ) {
-        this.retornoFront.protocols.ftp++;
-        this.retornoFront.computers.find(
-          (device) =>
-            device.ipv4.includes(ipv4Info.ipSrc) ||
-            device.ipv4.includes(ipv4Info.ipDst)
-        )!.protocols.ftp++;
-      } else {
-        this.retornoFront.protocols.other++;
-        this.retornoFront.computers.find(
-          (device) =>
-            device.ipv4.includes(ipv4Info.ipSrc) ||
-            device.ipv4.includes(ipv4Info.ipDst)
-        )!.protocols.other++;
-      }
-    } else if (isUDP) {
-      if (ports.dstPort === 443 || ports.srcPort === 443) {
-        this.retornoFront.protocols.other++;
-        this.retornoFront.computers.find(
-          (device) =>
-            device.ipv4.includes(ipv4Info.ipSrc) ||
-            device.ipv4.includes(ipv4Info.ipDst)
-        )!.protocols.other++;
-      } else {
-        // Se for UDP e a porta não for 443, também é "other"
-        this.retornoFront.protocols.other++;
-        this.retornoFront.computers.find(
-          (device) =>
-            device.ipv4.includes(ipv4Info.ipSrc) ||
-            device.ipv4.includes(ipv4Info.ipDst)
-        )!.protocols.other++;
-      }
-    } else {
-      // Qualquer outro protocolo IP
-      this.retornoFront.protocols.other++;
-      this.retornoFront.computers.find(
-        (device) =>
-          device.ipv4.includes(ipv4Info.ipSrc) ||
-          device.ipv4.includes(ipv4Info.ipDst)
-      )!.protocols.other++;
-    }
+    const device = this.retornoFront.computers.find(
+    (dev) => dev.ipv4.includes(ipv4Info.ipSrc) || dev.ipv4.includes(ipv4Info.ipDst)
+  );
+  
+  if (!device) {
+    return; // Se não encontrar o dispositivo, saia.
   }
+  
+  if (isTCP) {
+    if (ports.dstPort === 80 || ports.srcPort === 80) {
+      this.retornoFront.protocols.http++;
+      device.protocols.http++;
+    } else if (ports.dstPort === 443 || ports.srcPort === 443) {
+      this.retornoFront.protocols.https++;
+      device.protocols.https++;
+    } else if (
+      ports.dstPort === 20 ||
+      ports.dstPort === 21 ||
+      ports.srcPort === 20 ||
+      ports.srcPort === 21
+    ) {
+      this.retornoFront.protocols.ftp++;
+      device.protocols.ftp++;
+    } else {
+      this.retornoFront.protocols.other++;
+      device.protocols.other++;
+    }
+  } else if (isUDP) {
+    // Você já conta os pacotes UDP no _processUdpPacket.
+    // O _updateProtocolCount não precisa fazer isso novamente.
+    // Se a intenção é contar outros protocolos na camada 4, faça isso aqui.
+    // Se o protocolo UDP for QUIC, por exemplo, o que usa a porta 443,
+    // a contagem de 'other' faz sentido.
+    if (ports.dstPort === 443 || ports.srcPort === 443) {
+        this.retornoFront.protocols.other++; // Se a lógica é contar QUIC como 'other'
+        device.protocols.other++;
+    } else {
+        this.retornoFront.protocols.other++;
+        device.protocols.other++;
+    }
+  } else {
+    // Para outros protocolos de IP que não são TCP ou UDP
+    this.retornoFront.protocols.other++;
+    device.protocols.other++;
+  }
+}
 
   private assignMacToDevice(
     macInfo: string,
