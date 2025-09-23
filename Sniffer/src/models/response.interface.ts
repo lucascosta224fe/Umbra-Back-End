@@ -1,9 +1,9 @@
 export interface ComputerI {
   index: number;
   name: string;
-  ipv4: string;
-  ipv6: string;
-  mac: string;
+  ipv4: string[];
+  ipv6: string[];
+  mac: string | null;
   protocols: ProtocolsI;
   packetsIn: number;
   packetsOut: number;

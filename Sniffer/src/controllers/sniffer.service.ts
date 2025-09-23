@@ -81,8 +81,26 @@ export class SnifferService {
         };
       });
 
+    // realDevices.push({
+    //   index: -1,
+    //   name: '192.168.15.28',
+    //   ipv4: ['192.168.15.28'],
+    //   ipv6: [],
+    //   mac: null,
+    //   packetsIn: 0,
+    //   packetsOut: 0,
+    //   protocols: {
+    //     http: 0,
+    //     https: 0,
+    //     ftp: 0,
+    //     tcp: 0,
+    //     udp: 0,
+    //     other: 0,
+    //   },
+    // });
+
     //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
-    const device = Cap.findDevice("192.168.15.5");
+    const device = Cap.findDevice("192.168.15.31");
     if (!device) {
       console.error(
         "Nenhuma interface disponível. Verifique permissão / drivers."
