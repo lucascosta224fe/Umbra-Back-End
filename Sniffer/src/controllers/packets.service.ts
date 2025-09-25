@@ -167,7 +167,8 @@ export class PacketsService {
 
     if (
       connection.sentPackets.has(tcp.info.seqno) &&
-      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength
+      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength 
+      && tcpPayloadLength != 0
     ) {
       this.qtdPacketsResend++;
     } else {
@@ -341,6 +342,7 @@ export class PacketsService {
     } else {
       this.retornoFront.qtdPacotesReenviados =
         (this.qtdPacketsResend / qtdPackets) * 100;
+        console.log(this.retornoFront.qtdPacotesReenviados)
       this.qtdPacketsResend = 0;
     }
   }
