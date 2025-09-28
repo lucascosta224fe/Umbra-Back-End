@@ -66,12 +66,15 @@ export class PacketsService {
         if (isRst) flagsArray.push('RST');
 
         if (flagsArray.length > 0) {
-            flagInfo = `[${flagsArray.join(', ')}]`;
+          flagInfo = `[${flagsArray.join(', ')}]`;
         }
 
         info = `${tcp.info.srcport} > ${tcp.info.dstport} ${flagInfo} Seq=${tcp.info.seqno} Ack=${tcp.info.ackno} Len=${payloadLen}`;
         this._processTcpPacket(ip, ipv4Info);
       } else if (ip.info.protocol === this.decoders.PROTOCOL.IP.UDP) {
+        const udp = this.decoders.UDP(this.buffer, ip.offset);
+        protocolName = "UDP";
+        info = `Source port: ${udp.info.srcport} Destination port: ${udp.info.dstport}`;
         this._processUdpPacket(ip, ipv4Info);
       } else {
         return;
