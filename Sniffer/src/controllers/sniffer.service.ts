@@ -107,7 +107,6 @@ export class SnifferService {
     //   logs: []
     // });
 
-    //const device = '\\Device\\NPF_{3156B2CC-C04B-481E-97CB-E6DE71485329}';    // Altere para a placa de rede do Sniffer (estamos usando somente do PC para testes)
     const device = Cap.findDevice("192.168.15.5");
     if (!device) {
       console.error(
@@ -122,8 +121,6 @@ export class SnifferService {
       this.bufSize,
       this.buffer
     ); // Começa a ver pacotes
-
-    // this.cap.setMinBytes(0); // Captura acontece até em pacotes de tamanho 0
 
     const packetsService = new PacketsService(
       this.buffer,
