@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Sniffer Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --card-bg-color: #ffffff;
+            --text-color: #1c1e21;
+            --light-text-color: #606770;
+            --border-color: #dddfe2;
+            --accent-blue: #1877f2;
+            --accent-green: #42b72a;
+            --accent-red: #fa3e3e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        h1, h2 {
+            color: var(--text-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* --- Estilos do Resumo (sem alteração) --- */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            background-color: var(--card-bg-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-top: 4px solid var(--accent-blue);
+        }
+        .summary-card.bad { border-top-color: var(--accent-red); }
+        .summary-card.good { border-top-color: var(--accent-green); }
+        .summary-card h3 { margin: 0 0 10px 0; font-size: 1rem; color: var(--light-text-color); }
+        .summary-card .value { font-size: 2.2rem; font-weight: bold; color: var(--text-color); }
+        .summary-card .protocol-list { padding-left: 0; list-style: none; font-size: 0.9rem; }
+        .summary-card .protocol-list li { display: flex; justify-content: space-between; }
+        
+        /* --- ESTILOS DO ACORDEÃO E DA LISTA --- */
+        #computers-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .computer-card {
+            background: var(--card-bg-color);
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            overflow: hidden; /* Importante para a animação do acordeão */
+        }
+
+        .accordion-trigger {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .accordion-trigger:hover {
+            background-color: #f7f7f7;
+        }
+        .accordion-trigger h4 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+        .accordion-trigger .ip-address {
+            font-family: 'Consolas', 'Menlo', monospace;
+            color: var(--light-text-color);
+        }
+
+        /* Ícone de expandir/recolher */
+        .accordion-trigger::after {
+            content: '+';
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent-blue);
+            transition: transform 0.3s ease;
+        }
+        .computer-card.active .accordion-trigger::after {
+            content: '−'; /* Sinal de menos */
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            max-height: 0; /* Começa fechado */
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease;
+            padding: 0 20px; /* Padding vertical zero para animação */
+            border-top: 1px solid var(--border-color);
+        }
+        .computer-card.active .accordion-content {
+            max-height: 300px; /* Altura suficiente para o conteúdo */
+            padding: 15px 20px;
+        }
+        
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 20px;
+        }
+        .details-grid p {
+            margin: 4px 0;
+            font-family: 'Consolas', 'Menlo', monospace;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Dashboard da Rede</h1>
+
+        <section class="summary-grid">
+            <div class="summary-card good">
+                <h3>🖥️ Dispositivos Ativos</h3>
+                <p class="value" id="qtd-computadores">0</p>
+            </div>
+            <div class="summary-card">
+                <h3>📈 Taxa de Tráfego</h3>
+                <p class="value" id="taxa-trafego">0</p>
+            </div>
+            <div class="summary-card bad">
+                <h3>💔 Pacotes Perdidos</h3>
+                <p class="value" id="pacotes-perdidos">0</p>
+            </div>
+            <div class="summary-card">
+                <h3>📜 Protocolos (Total)</h3>
+                <ul class="protocol-list" id="total-protocols">
+                </ul>
+            </div>
+        </section>
+
+        <section>
+            <h2>Dispositivos na Rede</h2>
+            <ul id="computers-list">
+                </ul>
+        </section>
+    </div>
+
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io("http://localhost:3000");
+
+        // --- Elementos do DOM ---
+        const qtdComputadoresEl = document.getElementById('qtd-computadores');
+        const taxaTrafegoEl = document.getElementById('taxa-trafego');
+        const pacotesPerdidosEl = document.getElementById('pacotes-perdidos');
+        const totalProtocolsEl = document.getElementById('total-protocols');
+        const computerListEl = document.getElementById('computers-list');
+
+        // --- LÓGICA DO ACORDEÃO (EVENT DELEGATION) ---
+        computerListEl.addEventListener('click', (event) => {
+            const trigger = event.target.closest('.accordion-trigger');
+            if (!trigger) return; // Se o clique não foi no cabeçalho, ignora
+
+            const parentCard = trigger.parentElement;
+            parentCard.classList.toggle('active');
+        });
+
+        // --- ATUALIZAÇÃO DE DADOS VIA SOCKET ---
+        socket.on('packetData', (data) => {
+            if (!data) return;
+
+            // 1. ATUALIZA O RESUMO GERAL
+            qtdComputadoresEl.textContent = data.qtdComputadores || 0;
+            taxaTrafegoEl.textContent = data.taxaTráfego || 0;
+            pacotesPerdidosEl.textContent = data.qtdPacotesPerdidos || 0;
+            if (data.protocols) {
+                totalProtocolsEl.innerHTML = `
+                    <li><span>HTTP:</span> <strong>${data.protocols.http || 0}</strong></li>
+                    <li><span>HTTPS:</span> <strong>${data.protocols.https || 0}</strong></li>
+                    <li><span>TCP:</span> <strong>${data.protocols.tcp || 0}</strong></li>
+                    <li><span>UDP:</span> <strong>${data.protocols.udp || 0}</strong></li>
+                    <li><span>FTP:</span> <strong>${data.protocols.ftp || 0}</strong></li>
+                `;
+            }
+
+            // 2. ATUALIZA A LISTA DE COMPUTADORES DE FORMA INTELIGENTE
+            const receivedMacs = new Set(); // Para rastrear os MACs recebidos
+
+            if (data.computers && Array.isArray(data.computers)) {
+                data.computers.forEach(computer => {
+                    const macId = computer.mac.replace(/:/g, '-'); // ID válido para o DOM
+                    receivedMacs.add(macId);
+                    
+                    let computerEl = document.getElementById(macId);
+
+                    if (computerEl) {
+                        // O dispositivo JÁ EXISTE na lista, apenas atualiza os dados
+                        // (Não mexe no acordeão, apenas nos valores internos)
+                        computerEl.querySelector('.ip-address').textContent = computer.ipv4 || 'N/A';
+                        computerEl.querySelector('.value-mac').textContent = computer.mac || 'N/A';
+                        computerEl.querySelector('.value-ipv6').textContent = computer.ipv6 || 'N/A';
+                        computerEl.querySelector('.value-packets-in').textContent = computer.packetsIn || 0;
+                        computerEl.querySelector('.value-packets-out').textContent = computer.packetsOut || 0;
+                        // Atualizar protocolos (opcional, mas bom ter)
+                        const p = computer.protocols || {};
+                        computerEl.querySelector('.value-proto-http').textContent = p.http || 0;
+                        computerEl.querySelector('.value-proto-https').textContent = p.https || 0;
+                        computerEl.querySelector('.value-proto-tcp').textContent = p.tcp || 0;
+                        computerEl.querySelector('.value-proto-udp').textContent = p.udp || 0;
+
+                    } else {
+                        // O dispositivo é NOVO, cria o elemento completo
+                        const li = document.createElement('li');
+                        li.className = 'computer-card';
+                        li.id = macId;
+                        
+                        const p = computer.protocols || {};
+                        li.innerHTML = `
+                            <div class="accordion-trigger">
+                                <h4>${computer.name || `Dispositivo ${computer.index}`}</h4>
+                                <span class="ip-address">${computer.ipv4 || 'N/A'}</span>
+                            </div>
+                            <div class="accordion-content">
+                                <div class="details-grid">
+                                    <p><strong>MAC Address:</strong> <span class="value-mac">${computer.mac}</span></p>
+                                    <p><strong>IPv6:</strong> <span class="value-ipv6">${computer.ipv6 || 'N/A'}</span></p>
+                                    <p><strong>Pacotes Recebidos:</strong> <span class="value-packets-in">${computer.packetsIn || 0}</span></p>
+                                    <p><strong>Pacotes Enviados:</strong> <span class="value-packets-out">${computer.packetsOut || 0}</span></p>
+                                </div>
+                                <h4>Protocolos:</h4>
+                                <div class="details-grid">
+                                    <p>HTTP: <strong class="value-proto-http">${p.http || 0}</strong></p>
+                                    <p>HTTPS: <strong class="value-proto-https">${p.https || 0}</strong></p>
+                                    <p>TCP: <strong class="value-proto-tcp">${p.tcp || 0}</strong></p>
+                                    <p>UDP: <strong class="value-proto-udp">${p.udp || 0}</strong></p>
+                                </div>
+                            </div>
+                        `;
+                        computerListEl.appendChild(li);
+                    }
+                });
+            }
+
+            // 3. REMOVE dispositivos que não estão mais na rede
+            Array.from(computerListEl.children).forEach(el => {
+                if (!receivedMacs.has(el.id)) {
+                    el.remove();
+                }
+            });
+        });
+
+        socket.on('connect', () => console.log("✅ Conectado ao servidor!"));
+        socket.on('disconnect', () => console.log("❌ Desconectado do servidor."));
+    </script>
+</body>
+</html>

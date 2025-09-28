@@ -1,5 +1,11 @@
 # Umbra-Back-End
 
+## Sniffers
+
+para rodar o cap no linux: 
+  
+sudo apt install libpcap0.8 libpcap-dev
+
 ## Server FTP
 
 Para rodar: 
@@ -14,3 +20,4 @@ Para consumir:
 3. digitar ```get```
 4. o nome do arquivo do servidor ```teste.txt```
 5. o nome do arquivo local ```arquivo```
+6. 
