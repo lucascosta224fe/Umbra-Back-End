@@ -35,6 +35,8 @@ export class PacketsService {
 
   public processPacket(): void {
     let ipv4Info = { ipSrc: "", ipDst: "", totalLen: 0 };
+    let protocolName = "";
+    let info = ""
 
     const eth = this.decoders.Ethernet(this.buffer);
 
@@ -46,11 +48,37 @@ export class PacketsService {
       ipv4Info.totalLen = ip.info.totallen;
 
       if (ip.info.protocol === this.decoders.PROTOCOL.IP.TCP) {
+        const tcp = this.decoders.TCP(this.buffer, ip.offset);
+        protocolName = "TCP";
+
+        const flags = tcp.info.flags;
+        const isSyn = (flags & 2) !== 0;
+        const isAck = (flags & 16) !== 0;
+        const isFin = (flags & 1) !== 0;
+        const isRst = (flags & 4) !== 0;
+        const payloadLen = ipv4Info.totalLen - ip.hdrlen - tcp.hdrlen;
+
+        let flagInfo = '';
+        const flagsArray = [];
+        if (isSyn) flagsArray.push('SYN');
+        if (isAck) flagsArray.push('ACK');
+        if (isFin) flagsArray.push('FIN');
+        if (isRst) flagsArray.push('RST');
+
+        if (flagsArray.length > 0) {
+            flagInfo = `[${flagsArray.join(', ')}]`;
+        }
+
+        info = `${tcp.info.srcport} > ${tcp.info.dstport} ${flagInfo} Seq=${tcp.info.seqno} Ack=${tcp.info.ackno} Len=${payloadLen}`;
         this._processTcpPacket(ip, ipv4Info);
       } else if (ip.info.protocol === this.decoders.PROTOCOL.IP.UDP) {
         this._processUdpPacket(ip, ipv4Info);
+      } else {
+        return;
       }
     }
+
+    this._addLogToDevices(ipv4Info, protocolName, info);
 
     this.assignMacToDevice(eth.info.srcmac, ipv4Info);
     this.updateDevicePacketCount(ipv4Info);
@@ -135,6 +163,7 @@ export class PacketsService {
     const isFin = (tcp.info.flags & 1) !== 0;
     const isRst = (tcp.info.flags & 4) !== 0;
 
+
     if (isRst) {
       sessionToUpdate.status = 'CLOSED_RST';
     } else if (isFin) {
@@ -167,7 +196,7 @@ export class PacketsService {
 
     if (
       connection.sentPackets.has(tcp.info.seqno) &&
-      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength 
+      connection.sentPackets.get(tcp.info.seqno) === tcpPayloadLength
       && tcpPayloadLength != 0
     ) {
       this.qtdPacketsResend++;
@@ -232,51 +261,51 @@ export class PacketsService {
     const isUDP = ipProtocol === this.decoders.PROTOCOL.IP.UDP;
 
     const device = this.retornoFront.computers.find(
-    (dev) => dev.ipv4.includes(ipv4Info.ipSrc) || dev.ipv4.includes(ipv4Info.ipDst)
-  );
-  
-  if (!device) {
-    return; // Se não encontrar o dispositivo, saia.
-  }
-  
-  if (isTCP) {
-    if (ports.dstPort === 80 || ports.srcPort === 80) {
-      this.retornoFront.protocols.http++;
-      device.protocols.http++;
-    } else if (ports.dstPort === 443 || ports.srcPort === 443) {
-      this.retornoFront.protocols.https++;
-      device.protocols.https++;
-    } else if (
-      ports.dstPort === 20 ||
-      ports.dstPort === 21 ||
-      ports.srcPort === 20 ||
-      ports.srcPort === 21
-    ) {
-      this.retornoFront.protocols.ftp++;
-      device.protocols.ftp++;
+      (dev) => dev.ipv4.includes(ipv4Info.ipSrc) || dev.ipv4.includes(ipv4Info.ipDst)
+    );
+
+    if (!device) {
+      return; // Se não encontrar o dispositivo, saia.
+    }
+
+    if (isTCP) {
+      if (ports.dstPort === 80 || ports.srcPort === 80) {
+        this.retornoFront.protocols.http++;
+        device.protocols.http++;
+      } else if (ports.dstPort === 443 || ports.srcPort === 443) {
+        this.retornoFront.protocols.https++;
+        device.protocols.https++;
+      } else if (
+        ports.dstPort === 20 ||
+        ports.dstPort === 21 ||
+        ports.srcPort === 20 ||
+        ports.srcPort === 21
+      ) {
+        this.retornoFront.protocols.ftp++;
+        device.protocols.ftp++;
+      } else {
+        this.retornoFront.protocols.other++;
+        device.protocols.other++;
+      }
+    } else if (isUDP) {
+      // Você já conta os pacotes UDP no _processUdpPacket.
+      // O _updateProtocolCount não precisa fazer isso novamente.
+      // Se a intenção é contar outros protocolos na camada 4, faça isso aqui.
+      // Se o protocolo UDP for QUIC, por exemplo, o que usa a porta 443,
+      // a contagem de 'other' faz sentido.
+      if (ports.dstPort === 443 || ports.srcPort === 443) {
+        this.retornoFront.protocols.other++; // Se a lógica é contar QUIC como 'other'
+        device.protocols.other++;
+      } else {
+        this.retornoFront.protocols.other++;
+        device.protocols.other++;
+      }
     } else {
+      // Para outros protocolos de IP que não são TCP ou UDP
       this.retornoFront.protocols.other++;
       device.protocols.other++;
     }
-  } else if (isUDP) {
-    // Você já conta os pacotes UDP no _processUdpPacket.
-    // O _updateProtocolCount não precisa fazer isso novamente.
-    // Se a intenção é contar outros protocolos na camada 4, faça isso aqui.
-    // Se o protocolo UDP for QUIC, por exemplo, o que usa a porta 443,
-    // a contagem de 'other' faz sentido.
-    if (ports.dstPort === 443 || ports.srcPort === 443) {
-        this.retornoFront.protocols.other++; // Se a lógica é contar QUIC como 'other'
-        device.protocols.other++;
-    } else {
-        this.retornoFront.protocols.other++;
-        device.protocols.other++;
-    }
-  } else {
-    // Para outros protocolos de IP que não são TCP ou UDP
-    this.retornoFront.protocols.other++;
-    device.protocols.other++;
   }
-}
 
   private assignMacToDevice(
     macInfo: string,
@@ -320,6 +349,7 @@ export class PacketsService {
     this.retornoFront.inputOutput.output = 0;
     this.retornoFront.protocols.other = 0;
 
+
     this.retornoFront.computers.forEach((device) => {
       device.packetsIn = 0;
       device.packetsOut = 0;
@@ -332,6 +362,7 @@ export class PacketsService {
         other: 0,
       };
       device.sessions = [];
+      device.logs = [];
     });
   }
 
@@ -342,7 +373,7 @@ export class PacketsService {
     } else {
       this.retornoFront.qtdPacotesReenviados =
         (this.qtdPacketsResend / qtdPackets) * 100;
-        console.log(this.retornoFront.qtdPacotesReenviados)
+      console.log(this.retornoFront.qtdPacotesReenviados)
       this.qtdPacketsResend = 0;
     }
   }
@@ -351,7 +382,7 @@ export class PacketsService {
     this.tcpConnections.clear();
     this.udpRequests.clear();
     this.allRtts = [];
-    
+
   }
 
   public updateInputOutput(): void {
@@ -374,5 +405,39 @@ export class PacketsService {
     } else {
       this.retornoFront.tempoMedioResposta = 0;
     }
+  }
+
+  private _addLogToDevices(
+    ipv4Info: { ipSrc: string; ipDst: string; totalLen: number },
+    protocolName: string,
+    info: string
+  ): void {
+
+    // Verificação para desconsiderar logs vazios
+    if (!protocolName || !ipv4Info.ipSrc) {
+      return;
+    }
+
+    const logEntry = {
+      source: ipv4Info.ipSrc,
+      destination: ipv4Info.ipDst,
+      protocol: protocolName,
+      length: ipv4Info.totalLen,
+      info: info,
+    };
+
+    // Encontra o dispositivo de origem e adiciona o log
+    const sourceDevice = this.mappedDevices.find((d) => d.ipv4.includes(ipv4Info.ipSrc));
+    if (sourceDevice) {
+      sourceDevice.logs.push(logEntry);
+    }
+
+    // Encontra o dispositivo de destino e adiciona o log, se for diferente do de origem
+    const destDevice = this.mappedDevices.find((d) => d.ipv4.includes(ipv4Info.ipDst));
+    if (destDevice && (!sourceDevice || sourceDevice.ipv4[0] !== destDevice.ipv4[0])) {
+      destDevice.logs.push(logEntry);
+    }
+
+    console.log(logEntry)
   }
 }

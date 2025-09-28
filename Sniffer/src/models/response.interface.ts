@@ -9,6 +9,8 @@ export interface ComputerI {
   packetsOut: number;
   lineChartData: { time: number; packages: number; tcpError: number }[];
   sessions: SessionInfoI[];
+  logs: LogI[];
+
 }
 export interface ResponseI {
   qtdComputadores: number; // mappedDevices.at(-1).index
@@ -19,6 +21,7 @@ export interface ResponseI {
   computers: ComputerI[];
   protocols: ProtocolsI;
   inputOutput: InputOutput;
+
 }
 
 export interface ProtocolsI {
@@ -53,4 +56,12 @@ export interface SessionInfoI {
   localAddress: string;
   externalAddress: string;
   status: string;
+}
+
+export interface LogI {
+  source: string;
+  destination: string;
+  protocol: string;
+  length: number;
+  info: string;
 }
