@@ -172,8 +172,8 @@ export class SnifferService {
             tcpError: tcpError
         });
 
-        // Mantém apenas os últimos 6 pontos (30 segundos).
-        if (history.length > 6) {
+        // Mantém apenas os últimos 12 pontos (60 segundos).
+        if (history.length > 12) {
             history.shift();
         }
 
