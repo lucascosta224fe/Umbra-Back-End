@@ -11,12 +11,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@types/axios": "^0.9.36",
-    "@types/node": "^24.5.2",
-    "axios": "^1.12.2",
     "express": "^5.1.0",
-    "jest": "^30.1.3",
-    "ts-node": "^10.9.2"
+    "jest": "^30.1.3"
   },
   "devDependencies": {
     "@jest-mock/express": "^3.0.0",
