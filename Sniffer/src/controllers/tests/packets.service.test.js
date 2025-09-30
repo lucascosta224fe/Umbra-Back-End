@@ -136,30 +136,37 @@ describe('PacketsService', () => {
     packetsOut: 0,
     protocols: { http: 0, https: 0, ftp: 0, tcp: 0, udp: 0, other: 0 },
     sessions: [], 
+    logs: [],
   });
 
   describe('processPacket()', () => {
     
-    it('TCP incrementa protocolos, taxaTráfego e associa MAC', () => {
-      
+    it('TCP incrementa protocolos, taxaTráfego, associa MAC e cria logs', () => {
       mockDecoders.Ethernet.mockReturnValue({ info: { type: 0x0800, srcmac: '11:22:33:44:55:66' }, offset: 14 });
-      mockDecoders.IPV4.mockReturnValue({ info: { protocol: 6, srcaddr: '192.168.0.10', dstaddr: '192.168.0.20', totallen: 60 }, offset: 34 });
+      mockDecoders.IPV4.mockReturnValue({ info: { protocol: 6, srcaddr: '192.168.0.10', dstaddr: '192.168.0.20', totallen: 60, hdrlen: 20 }, offset: 34 });
       mockDecoders.TCP.mockReturnValue({ info: { srcport: 12345, dstport: 80, flags: 16, seqno: 1, acknum: 1, hdrlen: 20 } });
 
       const service = new PacketsService(testBuffer, '', mockDecoders, mappedDevices, retornoFront, 0);
 
       service.processPacket();
 
-
       expect(retornoFront.protocols.tcp).toBe(1);
       expect(retornoFront.protocols.http).toBe(1);
       expect(retornoFront.taxaTráfego).toBe(60);
-      expect(mappedDevices[0].mac).toBe('11:22:33:44:55:66');
-      
-      expect(mappedDevices[0].sessions).toHaveLength(1);
-      expect(mappedDevices[0].sessions[0].status).toBe('NEW'); 
-    });
 
+      const sourceDevice = mappedDevices[0];
+      const destDevice = mappedDevices[1];
+
+      expect(sourceDevice.mac).toBe('11:22:33:44:55:66');
+      expect(sourceDevice.sessions).toHaveLength(1);
+      expect(sourceDevice.sessions[0].status).toBe('NEW');
+
+      // Garante que os logs foram adicionados
+      expect(sourceDevice.logs).toHaveLength(1);
+      expect(destDevice.logs).toHaveLength(1);
+      expect(sourceDevice.logs[0].protocol).toBe('TCP');
+      expect(sourceDevice.logs[0].info).toContain('[ACK]'); // Verifica se a info do log está correta
+    });
     it('TCP conta pacotes perdidos (flags.reset)', () => {
 
       mockDecoders.Ethernet.mockReturnValue({ info: { type: 0x0800, srcmac: '...' }, offset: 14 });
